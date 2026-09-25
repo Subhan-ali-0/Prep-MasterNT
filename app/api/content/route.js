@@ -2,40 +2,11 @@ import { NextResponse } from 'next/server';
 
 const SOURCE = 'https://nt.studybeepro.site/api/nig';
 
-function collectItems(value, output = []) {
-  if (value == null) return output;
+function normalizeItem(item, index) {
+  if (!item || typeof item !== 'object') return null;
 
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      if (item && typeof item === 'object') {
-        output.push(item);
-      }
-      collectItems(item, output);
-    }
-    return output;
-  }
-
-  if (typeof value === 'object') {
-    for (const key of Object.keys(value)) {
-      const child = value[key];
-
-      if (Array.isArray(child)) {
-        for (const item of child) {
-          if (item && typeof item === 'object') {
-            output.push(item);
-          }
-        }
-      }
-
-      collectItems(child, output);
-    }
-  }
-
-  return output;
-}
-
-function normalize(item, index) {
   const id =
+    item.entity_id ??
     item.id ??
     item.folder_id ??
     item.folderId ??
@@ -54,17 +25,13 @@ function normalize(item, index) {
     item.contentName ??
     item.lecture_name ??
     item.lectureName ??
-    item.subject_name ??
-    item.subjectName ??
     `Content ${index + 1}`;
 
-  const type = String(
-    item.type ??
-    item.content_type ??
-    item.contentType ??
-    item.kind ??
-    ''
-  ).toLowerCase();
+  const type = String(item.type ?? '').toLowerCase();
+
+  const data = item.data && typeof item.data === 'object'
+    ? item.data
+    : {};
 
   const url =
     item.video_url ??
@@ -76,29 +43,20 @@ function normalize(item, index) {
     item.pdf_url ??
     item.pdfUrl ??
     item.url ??
+    data.file_url ??
     '';
 
-  const folderId =
-    item.folder_id ??
-    item.folderId ??
-    item.parent_folder_id ??
-    item.parentFolderId;
-
-  const isFolder =
-    type.includes('folder') ||
-    type.includes('directory') ||
-    type.includes('subject') ||
-    type.includes('chapter') ||
-    item.is_folder === true ||
-    item.isFolder === true;
+  const isFolder = type === 'folder';
 
   return {
     ...item,
     id: String(id),
+    entity_id: String(item.entity_id ?? id),
     title: String(title),
     kind: isFolder ? 'folder' : url ? 'media' : 'item',
     url: String(url || ''),
-    folder_id: folderId ?? null
+    type,
+    data
   };
 }
 
@@ -142,38 +100,33 @@ export async function GET(request) {
       );
     }
 
-    let data;
+    let json;
 
     try {
-      data = JSON.parse(text);
+      json = JSON.parse(text);
     } catch {
       return NextResponse.json(
         {
           success: false,
-          error: 'Content source returned non-JSON data.'
+          error: 'Content source returned invalid JSON.'
         },
         { status: 502 }
       );
     }
 
-    const rawItems = collectItems(data);
+    const sourceData = Array.isArray(json?.data)
+      ? json.data
+      : Array.isArray(json)
+        ? json
+        : [];
 
-    const items = [];
-    const seen = new Set();
-
-    for (const item of rawItems) {
-      const normalized = normalize(item, items.length);
-
-      if (!seen.has(normalized.id)) {
-        seen.add(normalized.id);
-        items.push(normalized);
-      }
-    }
+    const items = sourceData
+      .map(normalizeItem)
+      .filter(Boolean);
 
     return NextResponse.json({
       success: true,
-      data: items,
-      raw: data
+      data: items
     });
   } catch (error) {
     return NextResponse.json(

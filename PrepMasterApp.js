@@ -10,42 +10,21 @@ const defaults = {
   heroSubtitle: 'Your study space for batches, lectures and notes.',
 };
 
-/* ---------------- HELPERS ---------------- */
+/* =========================
+   HELPERS
+========================= */
 
 function arr(x) {
   if (Array.isArray(x)) return x;
-
-  if (x?.data && Array.isArray(x.data)) {
-    return x.data;
-  }
-
-  if (x?.data?.data && Array.isArray(x.data.data)) {
-    return x.data.data;
-  }
-
-  if (x && Array.isArray(x.items)) {
-    return x.items;
-  }
-
-  if (x && Array.isArray(x.content)) {
-    return x.content;
-  }
-
-  if (x?.data && Array.isArray(x.data.items)) {
-    return x.data.items;
-  }
-
-  if (x?.data && Array.isArray(x.data.content)) {
-    return x.data.content;
-  }
-
+  if (Array.isArray(x?.data)) return x.data;
+  if (Array.isArray(x?.data?.data)) return x.data.data;
+  if (Array.isArray(x?.items)) return x.items;
+  if (Array.isArray(x?.content)) return x.content;
   return [];
 }
 
 function id(x) {
-  if (!x || typeof x !== 'object') {
-    return '';
-  }
+  if (!x || typeof x !== 'object') return '';
 
   return String(
     x.entity_id ??
@@ -58,9 +37,7 @@ function id(x) {
 }
 
 function title(x) {
-  if (!x || typeof x !== 'object') {
-    return 'Untitled';
-  }
+  if (!x || typeof x !== 'object') return 'Untitled';
 
   return (
     x.title ??
@@ -72,14 +49,11 @@ function title(x) {
   );
 }
 
-function folder(x) {
-  if (!x || typeof x !== 'object') {
-    return false;
-  }
+function isFolder(x) {
+  if (!x || typeof x !== 'object') return false;
 
   const type = String(
     x.type ??
-      x.content_type ??
       x.entity_type ??
       x.item_type ??
       ''
@@ -93,8 +67,6 @@ function folder(x) {
     x.folder === true
   );
 }
-
-/* ---------------- FILE TYPE HELPERS ---------------- */
 
 function fileType(x) {
   return String(
@@ -131,11 +103,19 @@ function isPdf(x) {
   return (
     hasPdf(x) ||
     fileType(x) === '3' ||
-    contentType(x) === '3'
+    contentType(x) === '3' ||
+    Boolean(
+      x?.data?.pdf_url ||
+      x?.pdf_url ||
+      x?.data?.file_url ||
+      x?.file_url
+    )
   );
 }
 
-/* ---------------- APP ---------------- */
+/* =========================
+   APP
+========================= */
 
 export default function PrepMasterApp() {
   const [s] = useState(defaults);
@@ -160,7 +140,9 @@ export default function PrepMasterApp() {
   const [player, setPlayer] = useState(null);
   const [pdf, setPdf] = useState(null);
 
-  /* ---------------- LOAD BATCHES ---------------- */
+  /* =========================
+     LOAD BATCHES
+  ========================= */
 
   useEffect(() => {
     try {
@@ -175,71 +157,101 @@ export default function PrepMasterApp() {
       setEn([]);
     }
 
-    fetch('/api/batches', {
-      cache: 'no-store',
-    })
-      .then(async (r) => {
-        const text = await r.text();
-
-        let j;
-
-        try {
-          j = JSON.parse(text);
-        } catch {
-          throw new Error(
-            'Batches API returned invalid JSON'
-          );
-        }
-
-        if (!r.ok || !j.success) {
-          throw new Error(
-            j.error || 'Unable to load batches'
-          );
-        }
-
-        return j;
-      })
-      .then((j) => {
-        setBs(
-          Array.isArray(j.batches)
-            ? j.batches
-            : []
-        );
-      })
-      .catch((e) => {
-        setErr(
-          e.message || 'Unable to load batches'
-        );
-      });
+    loadBatches();
   }, []);
 
-  /* ---------------- SEARCH ---------------- */
+  async function loadBatches() {
+    try {
+      setErr('');
+
+      const r = await fetch('/api/batches', {
+        cache: 'no-store',
+      });
+
+      const text = await r.text();
+
+      let j;
+
+      try {
+        j = JSON.parse(text);
+      } catch {
+        throw new Error(
+          'Batches API returned invalid JSON'
+        );
+      }
+
+      if (!r.ok || !j.success) {
+        throw new Error(
+          j.error || 'Unable to load batches'
+        );
+      }
+
+      setBs(
+        Array.isArray(j.batches)
+          ? j.batches
+          : []
+      );
+    } catch (e) {
+      setErr(
+        e?.message ||
+          'Unable to load batches'
+      );
+    }
+  }
+
+  /* =========================
+     SEARCH
+  ========================= */
 
   const filtered = useMemo(() => {
+    const search = q.trim().toLowerCase();
+
+    if (!search) return bs;
+
     return bs.filter((b) =>
       `${b.title || ''} ${b.description || ''}`
         .toLowerCase()
-        .includes(q.toLowerCase())
+        .includes(search)
     );
   }, [bs, q]);
 
-  /* ---------------- ENROLLMENT ---------------- */
+  /* =========================
+     ENROLLMENT
+  ========================= */
 
-  function save(x) {
-    setEn(x);
+  function saveEnrollment(list) {
+    setEn(list);
 
     try {
       localStorage.setItem(
         'pm_enrolled',
-        JSON.stringify(x)
+        JSON.stringify(list)
       );
     } catch {}
   }
 
-  /* ---------------- OPEN BATCH ---------------- */
+  function enrollBatch() {
+    if (!sel) return;
 
-  async function open(b) {
-    setSel(b);
+    const next = [
+      ...en.filter(
+        (x) =>
+          String(x.id) !==
+          String(sel.id)
+      ),
+      sel,
+    ];
+
+    saveEnrollment(next);
+    setEnroll(false);
+  }
+
+  /* =========================
+     OPEN BATCH
+  ========================= */
+
+  async function openBatch(batch) {
+    setSel(batch);
     setPage('study');
     setStack([]);
     setItems([]);
@@ -247,14 +259,14 @@ export default function PrepMasterApp() {
     setErr('');
 
     try {
-      const r = await fetch(
+      const url =
         `/api/content?content=${encodeURIComponent(
-          String(b.id).trim()
-        )}&folder=0`,
-        {
-          cache: 'no-store',
-        }
-      );
+          String(batch.id).trim()
+        )}&folder=0`;
+
+      const r = await fetch(url, {
+        cache: 'no-store',
+      });
 
       const text = await r.text();
 
@@ -270,29 +282,33 @@ export default function PrepMasterApp() {
 
       if (!r.ok || !j.success) {
         throw new Error(
-          j.error || 'Unable to load content'
+          j.error ||
+            `Unable to load content (${r.status})`
         );
       }
 
       setItems(arr(j.data));
     } catch (e) {
       setErr(
-        e.message || 'Unable to load content'
+        e?.message ||
+          'Unable to load content'
       );
     } finally {
       setLoading(false);
     }
   }
 
-  /* ---------------- OPEN FOLDER ---------------- */
+  /* =========================
+     OPEN FOLDER
+  ========================= */
 
-  async function openFolder(x) {
+  async function openFolder(item) {
     if (!sel) {
       setErr('Batch is not selected');
       return;
     }
 
-    const folderId = id(x);
+    const folderId = id(item);
 
     if (!folderId) {
       setErr('Folder ID not found');
@@ -303,16 +319,16 @@ export default function PrepMasterApp() {
     setErr('');
 
     try {
-      const r = await fetch(
+      const url =
         `/api/content?content=${encodeURIComponent(
           String(sel.id).trim()
         )}&folder=${encodeURIComponent(
           folderId
-        )}`,
-        {
-          cache: 'no-store',
-        }
-      );
+        )}`;
+
+      const r = await fetch(url, {
+        cache: 'no-store',
+      });
 
       const text = await r.text();
 
@@ -328,44 +344,55 @@ export default function PrepMasterApp() {
 
       if (!r.ok || !j.success) {
         throw new Error(
-          j.error || 'Unable to open folder'
+          j.error ||
+            `Unable to open folder (${r.status})`
         );
       }
 
       setStack((previous) => [
         ...previous,
         {
-          items,
-          title: title(x),
+          items: items,
+          title: title(item),
         },
       ]);
 
       setItems(arr(j.data));
     } catch (e) {
       setErr(
-        e.message || 'Unable to open folder'
+        e?.message ||
+          'Unable to open folder'
       );
     } finally {
       setLoading(false);
     }
   }
 
-  /* ---------------- PLAY VIDEO ---------------- */
+  /* =========================
+     BACK FOLDER
+  ========================= */
 
-  async function lesson(x) {
+  function goBackFolder() {
+    const copy = [...stack];
+
+    const previous = copy.pop();
+
+    setStack(copy);
+    setItems(previous?.items || []);
+    setErr('');
+  }
+
+  /* =========================
+     PLAY VIDEO
+  ========================= */
+
+  async function playVideo(item) {
     if (!sel) {
       setErr('Batch is not selected');
       return;
     }
 
-    if (!isVideo(x)) {
-      setErr(
-        'This item is not a video.'
-      );
-      return;
-    }
-
-    const contentId = id(x);
+    const contentId = id(item);
 
     if (!contentId) {
       setErr('Content ID not found');
@@ -376,16 +403,16 @@ export default function PrepMasterApp() {
     setErr('');
 
     try {
-      const r = await fetch(
+      const url =
         `/api/playback?content_id=${encodeURIComponent(
           contentId
         )}&course_id=${encodeURIComponent(
           String(sel.id).trim()
-        )}`,
-        {
-          cache: 'no-store',
-        }
-      );
+        )}`;
+
+      const r = await fetch(url, {
+        cache: 'no-store',
+      });
 
       const text = await r.text();
 
@@ -401,7 +428,8 @@ export default function PrepMasterApp() {
 
       if (!r.ok || !j.success) {
         throw new Error(
-          j.error || 'Unable to load playback'
+          j.error ||
+            'Unable to load playback'
         );
       }
 
@@ -410,7 +438,6 @@ export default function PrepMasterApp() {
         j.data?.decryptedData?.file_url ||
         j.data?.url ||
         j.data?.file_url ||
-        j.data?.data?.decryptedData?.file_url ||
         null;
 
       if (!playableUrl) {
@@ -420,57 +447,107 @@ export default function PrepMasterApp() {
       }
 
       setPlayer({
-        title: title(x),
+        title: title(item),
         url: playableUrl,
       });
     } catch (e) {
       setErr(
-        e.message || 'Unable to play lesson'
+        e?.message ||
+          'Unable to play lesson'
       );
     } finally {
       setLoading(false);
     }
   }
 
-  /* ---------------- OPEN PDF ---------------- */
+  /* =========================
+     OPEN PDF / NOTE
+  ========================= */
 
-  function openPdf(x) {
-    const data = x?.data || x;
+  function openPdf(item) {
+    const data = item?.data || item;
 
     const pdfUrl =
-      data?.file_url ||
       data?.pdf_url ||
+      data?.file_url ||
       data?.download_url ||
+      data?.download_urls ||
+      item?.pdf_url ||
+      item?.file_url ||
+      item?.download_url ||
       null;
 
-    if (!pdfUrl) {
+    let finalUrl = pdfUrl;
+
+    /*
+      Some APIs return download_urls as JSON text.
+    */
+
+    if (
+      typeof finalUrl === 'string' &&
+      finalUrl.startsWith('{')
+    ) {
+      try {
+        const parsed =
+          JSON.parse(finalUrl);
+
+        finalUrl =
+          parsed?.pdf ||
+          parsed?.url ||
+          parsed?.file_url ||
+          parsed?.download_url ||
+          null;
+      } catch {}
+    }
+
+    if (
+      typeof finalUrl === 'string' &&
+      finalUrl.startsWith('[')
+    ) {
+      try {
+        const parsed =
+          JSON.parse(finalUrl);
+
+        if (Array.isArray(parsed)) {
+          finalUrl =
+            parsed[0]?.url ||
+            parsed[0]?.file_url ||
+            parsed[0] ||
+            null;
+        }
+      } catch {}
+    }
+
+    if (!finalUrl) {
       setErr(
-        'PDF URL is not available for this file.'
+        'PDF/Notes URL is not available for this file.'
       );
       return;
     }
 
     setPdf({
-      title: title(x),
-      url: pdfUrl,
+      title: title(item),
+      url: finalUrl,
     });
   }
 
-  /* ---------------- OPEN FILE ---------------- */
+  /* =========================
+     OPEN ANY CONTENT
+  ========================= */
 
-  function openFile(x) {
-    if (folder(x)) {
-      openFolder(x);
+  function openContent(item) {
+    if (isFolder(item)) {
+      openFolder(item);
       return;
     }
 
-    if (isVideo(x)) {
-      lesson(x);
+    if (isVideo(item)) {
+      playVideo(item);
       return;
     }
 
-    if (isPdf(x)) {
-      openPdf(x);
+    if (isPdf(item)) {
+      openPdf(item);
       return;
     }
 
@@ -479,48 +556,56 @@ export default function PrepMasterApp() {
     );
   }
 
-  /* ---------------- BATCH CARD ---------------- */
+  /* =========================
+     CARD
+  ========================= */
 
-  function card(b) {
+  function card(batch) {
     const enrolled = en.some(
       (x) =>
         String(x.id) ===
-        String(b.id)
+        String(batch.id)
     );
 
     return (
-      <article className="batchCard">
-
+      <article
+        className="batchCard"
+        key={batch.id}
+      >
         <img
           src={
-            b.thumbnail ||
+            batch.thumbnail ||
             '/prep-master-logo.png'
           }
           alt=""
         />
 
         <div className="batchBody">
-
-          <h3>{b.title}</h3>
+          <h3>
+            {batch.title}
+          </h3>
 
           <p>
-            {b.description ||
+            {batch.description ||
               'Study material, lectures and notes.'}
           </p>
 
           <div className="priceRow">
-            {b.price || 'FREE'}
+            {batch.price || 'FREE'}
 
-            {b.mrp && (
-              <del>{b.mrp}</del>
+            {batch.mrp && (
+              <del>
+                {batch.mrp}
+              </del>
             )}
           </div>
 
           <div className="cardActions">
-
             <button
               className="secondary"
-              onClick={() => open(b)}
+              onClick={() =>
+                openBatch(batch)
+              }
             >
               Study
             </button>
@@ -528,7 +613,9 @@ export default function PrepMasterApp() {
             {enrolled ? (
               <button
                 className="primary"
-                onClick={() => open(b)}
+                onClick={() =>
+                  openBatch(batch)
+                }
               >
                 LET’S STUDY
               </button>
@@ -536,23 +623,22 @@ export default function PrepMasterApp() {
               <button
                 className="primary"
                 onClick={() => {
-                  setSel(b);
+                  setSel(batch);
                   setEnroll(true);
                 }}
               >
                 Enroll
               </button>
             )}
-
           </div>
-
         </div>
-
       </article>
     );
   }
 
-  /* ---------------- UI ---------------- */
+  /* =========================
+     UI
+  ========================= */
 
   return (
     <div className="appShell">
@@ -560,9 +646,7 @@ export default function PrepMasterApp() {
       {/* HEADER */}
 
       <header className="topbar">
-
         <div className="brand">
-
           <img
             src="/prep-master-logo.png"
             alt="Prep Master"
@@ -571,18 +655,16 @@ export default function PrepMasterApp() {
           <strong>
             {s.appName}
           </strong>
-
         </div>
 
         <button
           className="iconBtn"
           onClick={() =>
-            setMenu(!menu)
+            setMenu((v) => !v)
           }
         >
           ⋮
         </button>
-
       </header>
 
       {/* MENU */}
@@ -610,10 +692,13 @@ export default function PrepMasterApp() {
 
           <button
             onClick={() => {
+              setMenu(false);
+
               if (s.telegramUrl) {
                 window.open(
                   s.telegramUrl,
-                  '_blank'
+                  '_blank',
+                  'noopener,noreferrer'
                 );
               }
             }}
@@ -623,10 +708,13 @@ export default function PrepMasterApp() {
 
           <button
             onClick={() => {
+              setMenu(false);
+
               if (s.ownerContact) {
                 window.open(
                   s.ownerContact,
-                  '_blank'
+                  '_blank',
+                  'noopener,noreferrer'
                 );
               }
             }}
@@ -636,6 +724,7 @@ export default function PrepMasterApp() {
 
           <button
             onClick={() => {
+              setMenu(false);
               window.location.href =
                 '/admin';
             }}
@@ -694,11 +783,9 @@ export default function PrepMasterApp() {
 
               {filtered
                 .slice(0, 6)
-                .map((b) => (
-                  <div key={b.id}>
-                    {card(b)}
-                  </div>
-                ))}
+                .map((b) =>
+                  card(b)
+                )}
 
             </div>
 
@@ -713,7 +800,6 @@ export default function PrepMasterApp() {
         <main className="page">
 
           <div className="pageHead">
-
             <h1>
               All Batches
             </h1>
@@ -721,7 +807,6 @@ export default function PrepMasterApp() {
             <p>
               Find your course and start learning.
             </p>
-
           </div>
 
           <input
@@ -733,13 +818,17 @@ export default function PrepMasterApp() {
             }
           />
 
+          {err && (
+            <div className="errorBox">
+              {err}
+            </div>
+          )}
+
           <div className="batchGrid">
 
-            {filtered.map((b) => (
-              <div key={b.id}>
-                {card(b)}
-              </div>
-            ))}
+            {filtered.map((b) =>
+              card(b)
+            )}
 
           </div>
 
@@ -769,20 +858,16 @@ export default function PrepMasterApp() {
             </div>
           ) : (
             <div className="batchGrid">
-
-              {en.map((b) => (
-                <div key={b.id}>
-                  {card(b)}
-                </div>
-              ))}
-
+              {en.map((b) =>
+                card(b)
+              )}
             </div>
           )}
 
         </main>
       )}
 
-      {/* LEARNING SCREEN */}
+      {/* STUDY */}
 
       {page === 'study' && sel && (
         <div className="learningFullScreen">
@@ -802,7 +887,7 @@ export default function PrepMasterApp() {
               ←
             </button>
 
-            <div>
+            <div className="learningTitle">
 
               <b>
                 {sel.title}
@@ -818,27 +903,31 @@ export default function PrepMasterApp() {
 
             </div>
 
-            <button
-              className="unenrollBtn"
-              onClick={() => {
+            {en.some(
+              (x) =>
+                String(x.id) ===
+                String(sel.id)
+            ) && (
+              <button
+                className="unenrollBtn"
+                onClick={() => {
+                  saveEnrollment(
+                    en.filter(
+                      (x) =>
+                        String(x.id) !==
+                        String(sel.id)
+                    )
+                  );
 
-                save(
-                  en.filter(
-                    (x) =>
-                      String(x.id) !==
-                      String(sel.id)
-                  )
-                );
-
-                setPage('my');
-                setSel(null);
-                setItems([]);
-                setStack([]);
-
-              }}
-            >
-              Unenroll
-            </button>
+                  setPage('my');
+                  setSel(null);
+                  setItems([]);
+                  setStack([]);
+                }}
+              >
+                Unenroll
+              </button>
+            )}
 
           </div>
 
@@ -860,24 +949,9 @@ export default function PrepMasterApp() {
             {stack.length > 0 && (
               <button
                 className="folderBack"
-                onClick={() => {
-
-                  const z = [
-                    ...stack,
-                  ];
-
-                  const last =
-                    z.pop();
-
-                  setStack(z);
-
-                  setItems(
-                    last?.items || []
-                  );
-
-                  setErr('');
-
-                }}
+                onClick={
+                  goBackFolder
+                }
               >
                 ← Back
               </button>
@@ -906,31 +980,32 @@ export default function PrepMasterApp() {
                 )}
 
               {items.map(
-                (x, i) => {
+                (item, index) => {
 
-                  const isFolder =
-                    folder(x);
+                  const folderItem =
+                    isFolder(item);
 
                   const video =
-                    isVideo(x);
+                    isVideo(item);
 
                   const pdfFile =
-                    isPdf(x);
+                    isPdf(item);
 
                   return (
                     <button
                       className="contentRow"
                       key={
-                        id(x) || i
+                        id(item) ||
+                        index
                       }
                       onClick={() =>
-                        openFile(x)
+                        openContent(item)
                       }
                     >
 
                       <span className="contentIcon">
 
-                        {isFolder
+                        {folderItem
                           ? '📁'
                           : video
                           ? '▶️'
@@ -940,20 +1015,20 @@ export default function PrepMasterApp() {
 
                       </span>
 
-                      <span>
+                      <span className="contentText">
 
                         <b>
-                          {title(x)}
+                          {title(item)}
                         </b>
 
                         <small>
 
-                          {isFolder
+                          {folderItem
                             ? 'Open folder'
                             : video
                             ? 'Open video'
                             : pdfFile
-                            ? 'Open PDF'
+                            ? 'Open PDF / Notes'
                             : 'Open content'}
 
                         </small>
@@ -1010,20 +1085,9 @@ export default function PrepMasterApp() {
 
             <button
               className="primary wide"
-              onClick={() => {
-
-                save([
-                  ...en.filter(
-                    (x) =>
-                      String(x.id) !==
-                      String(sel.id)
-                  ),
-                  sel,
-                ]);
-
-                setEnroll(false);
-
-              }}
+              onClick={
+                enrollBatch
+              }
             >
               Enroll Now
             </button>
@@ -1143,7 +1207,11 @@ export default function PrepMasterApp() {
         </button>
 
         <button
-          className="active"
+          className={
+            page === 'batches'
+              ? 'active'
+              : ''
+          }
           onClick={() =>
             setPage('batches')
           }

@@ -1,13 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import * as pdfjsLib from 'pdfjs-dist';
-
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-  `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
 export default function PdfPlayer({ url, title, onClose }) {
   const canvasRef = useRef(null);
+  const pdfjsRef = useRef(null);
 
   const [pdf, setPdf] = useState(null);
   const [page, setPage] = useState(1);
@@ -23,6 +20,14 @@ export default function PdfPlayer({ url, title, onClose }) {
       try {
         setLoading(true);
         setError('');
+
+        // pdfjs-dist is loaded only in the browser.
+        const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+
+        pdfjsLib.GlobalWorkerOptions.workerSrc =
+          `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+
+        pdfjsRef.current = pdfjsLib;
 
         const task = pdfjsLib.getDocument({
           url,

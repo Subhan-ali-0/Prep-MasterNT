@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { getDb } from '../../../../../lib/mongodb';
-import { validSession, COOKIE } from '../../../../../lib/admin';
+import { getDb } from '../../../../lib/mongodb';
+import { validSession, COOKIE } from '../../../../lib/admin';
 
 async function isAuthorized() {
   const cookieStore = await cookies();

@@ -10,59 +10,8 @@ const defaults = {
   heroSubtitle: 'Your study space for batches, lectures and notes.',
 };
 
-const arr = (x) => {
-  if (Array.isArray(x)) return x;
-  if (x && Array.isArray(x.data)) return x.data;
-  if (x && Array.isArray(x.items)) return x.items;
-  if (x && Array.isArray(x.content)) return x.content;
-  return [];
-};
+export default function PrepMasterApp() {
 
-const id = (x) =>
-  String(
-    x?.entity_id ??
-      x?.folder_id ??
-      x?.content_id ??
-      x?.id ??
-      ''
-  );
-
-const title = (x) =>
-  x?.title ??
-  x?.name ??
-  x?.folder_name ??
-  x?.content_name ??
-  'Untitled';
-
-const folder = (x) =>
-  String(x?.type ?? x?.content_type ?? '')
-    .toLowerCase()
-    .includes('folder') ||
-  x?.is_folder === true;
-
-
-
-  useEffect(() => {
-    try {
-      setEn(
-        JSON.parse(localStorage.getItem('pm_enrolled') || '[]')
-      );
-    } catch {}
-
-    fetch('/api/batches')
-      .then((r) => r.json())
-      .then((j) => {
-        if (j.success) {
-          setBs(j.batches || []);
-        }
-      })
-      .catch(() => {
-        setErr('Unable to load batches');
-      });
-  }, []);
-
-  const filtered = useMemo(() => {
-   export default function PrepMasterApp() {
   const [s, setS] = useState(defaults);
   const [bs, setBs] = useState([]);
   const [en, setEn] = useState([]);
@@ -77,7 +26,10 @@ const folder = (x) =>
   const [err, setErr] = useState('');
   const [menu, setMenu] = useState(false);
   const [enroll, setEnroll] = useState(false);
-  const [player, setPlayer] = useState(null); return bs.filter((b) =>
+  const [player, setPlayer] = useState(null);
+
+
+} return bs.filter((b) =>
       `${b.title} ${b.description}`
         .toLowerCase()
         .includes(q.toLowerCase())

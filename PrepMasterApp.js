@@ -2,25 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-const TELEGRAM_URL =
-  process.env.NEXT_PUBLIC_TELEGRAM_URL ||
-  'https://t.me/prepmaster0';
-
-const OWNER_URL =
-  process.env.NEXT_PUBLIC_OWNER_CONTACT ||
-  'https://t.me/Subhanali011';
-
-/* =========================
-   HELPERS
-========================= */
-
 function getId(item) {
   return String(
     item?.entity_id ??
       item?.id ??
       item?.data?.id ??
       item?.course_id ??
-      item?.courseId ??
       ''
   );
 }
@@ -30,7 +17,6 @@ function getTitle(item) {
     item?.title ??
     item?.name ??
     item?.data?.title ??
-    item?.data?.name ??
     'Untitled'
   );
 }
@@ -41,7 +27,6 @@ function getThumbnail(item) {
     item?.image ??
     item?.banner ??
     item?.data?.thumbnail ??
-    item?.data?.image ??
     ''
   );
 }
@@ -54,155 +39,90 @@ function getDescription(item) {
   );
 }
 
-/* =========================
-   FOLDER DETECTION
-========================= */
-
-function isFolder(item) {
-  if (!item || typeof item !== 'object') {
-    return false;
-  }
-
-  const directType = String(
-    item?.type ?? ''
-  ).toLowerCase();
-
-  const nestedType = String(
-    item?.data?.type ?? ''
-  ).toLowerCase();
-
-  if (
-    directType === 'folder' ||
-    nestedType === 'folder'
-  ) {
-    return true;
-  }
-
-  /*
-   * Important:
-   * Do NOT use content_counts.folders here.
-   * A content/file can also contain folder counts.
-   */
-
-  return false;
-}
-
-/* =========================
-   FILE TYPE
-========================= */
-
-function getFileType(item) {
-  const value =
-    item?.file_type ??
-    item?.content_type ??
-    item?.data?.file_type ??
-    item?.data?.content_type ??
-    item?.fileType ??
-    item?.contentType ??
-    item?.data?.fileType ??
-    item?.data?.contentType ??
+function getPrice(item) {
+  const price =
+    item?.offer_price ??
+    item?.price ??
+    item?.data?.offer_price ??
+    item?.data?.price ??
     '';
 
-  return String(value)
-    .toLowerCase()
-    .trim();
+  if (price === '' || price === null || price === undefined) {
+    return 'FREE';
+  }
+
+  return String(price);
+}
+
+function getBatchImage(batch) {
+  return (
+    batch?.thumbnail ||
+    batch?.image ||
+    batch?.banner ||
+    ''
+  );
+}
+
+function isFolder(item) {
+  return (
+    item?.type === 'folder' ||
+    item?.data?.content_counts?.folders?.total > 0 ||
+    item?.data?.folders
+  );
+}
+
+function getFileType(item) {
+  return Number(
+    item?.file_type ??
+      item?.content_type ??
+      item?.data?.file_type ??
+      item?.data?.content_type ??
+      0
+  );
 }
 
 function getVideoType(item) {
-  const value =
+  return Number(
     item?.video_type ??
-    item?.data?.video_type ??
-    item?.videoType ??
-    item?.data?.videoType ??
-    '';
-
-  return String(value)
-    .toLowerCase()
-    .trim();
+      item?.data?.video_type ??
+      0
+  );
 }
-
-function getContentKind(item) {
-  return String(
-    item?.type ??
-      item?.data?.type ??
-      item?.content_type ??
-      item?.data?.content_type ??
-      item?.contentType ??
-      item?.data?.contentType ??
-      ''
-  )
-    .toLowerCase()
-    .trim();
-}
-
-/* =========================
-   VIDEO
-========================= */
 
 function isVideo(item) {
-  if (!item) return false;
-
   const type = getFileType(item);
   const videoType = getVideoType(item);
-  const kind = getContentKind(item);
 
-  const url = String(
-    item?.file_url ??
-      item?.data?.file_url ??
-      item?.url ??
-      item?.data?.url ??
-      ''
+  const url =
+    item?.file_url ||
+    item?.data?.file_url ||
+    item?.url ||
+    item?.data?.url ||
+    '';
+
+  return (
+    type === 2 ||
+    videoType > 0 ||
+    /\.(m3u8|mp4)(\?|$)/i.test(url)
   );
-
-  if (
-    kind === 'video' ||
-    kind === 'videos'
-  ) {
-    return true;
-  }
-
-  if (
-    type === '2' ||
-    type === 'video' ||
-    type === 'videos'
-  ) {
-    return true;
-  }
-
-  if (
-    videoType &&
-    videoType !== '0' &&
-    videoType !== 'null' &&
-    videoType !== 'undefined'
-  ) {
-    return true;
-  }
-
-  if (
-    item?.is_video === true ||
-    item?.data?.is_video === true
-  ) {
-    return true;
-  }
-
-  if (
-    /\.(m3u8|mp4|webm)(\?|$)/i.test(url)
-  ) {
-    return true;
-  }
-
-  return false;
 }
-
-/* =========================
-   PDF
-========================= */
 
 function isPdf(item) {
   if (!item) return false;
 
-  const type = getFileType(item);
-  const kind = getContentKind(item);
+  const kind = String(
+    item?.type ??
+      item?.data?.type ??
+      item?.content_type ??
+      item?.data?.content_type ??
+      ''
+  ).toLowerCase();
+
+  const title = String(
+    item?.title ??
+      item?.data?.title ??
+      ''
+  ).toLowerCase();
 
   const url = String(
     item?.file_url ??
@@ -214,46 +134,17 @@ function isPdf(item) {
       ''
   );
 
-  if (
+  return (
     kind === 'pdf' ||
-    kind === 'document' ||
-    kind === 'notes'
-  ) {
-    return true;
-  }
-
-  if (
-    type === '3' ||
-    type === 'pdf' ||
-    type === 'document' ||
-    type === 'notes'
-  ) {
-    return true;
-  }
-
-  if (
+    kind === 'notes' ||
+    kind === 'note' ||
     item?.has_pdf === 1 ||
     item?.has_pdf === '1' ||
-    item?.has_pdf === true ||
-    item?.data?.has_pdf === 1 ||
-    item?.data?.has_pdf === '1' ||
-    item?.data?.has_pdf === true
-  ) {
-    return true;
-  }
-
-  if (
-    item?.pdf_url ||
-    item?.data?.pdf_url
-  ) {
-    return true;
-  }
-
-  if (/\.pdf(\?|$)/i.test(url)) {
-    return true;
-  }
-
-  return false;
+    Boolean(item?.pdf_url) ||
+    Boolean(item?.data?.pdf_url) ||
+    /\.pdf(\?|$)/i.test(url) ||
+    title.includes('notes')
+  );
 }
 
 function getPdfUrl(item) {
@@ -268,28 +159,16 @@ function getPdfUrl(item) {
   );
 }
 
-/* =========================
-   TEST
-========================= */
-
 function isTest(item) {
-  if (!item) return false;
-
-  const kind = getContentKind(item);
-
-  const title = getTitle(item)
-    .toLowerCase();
+  const title = getTitle(item).toLowerCase();
 
   return (
-    kind === 'test' ||
-    kind === 'tests' ||
     item?.type === 'test' ||
     item?.data?.type === 'test' ||
     title.includes('test') ||
     title.includes('quiz') ||
     title.includes('mock test') ||
-    title.includes('sample paper') ||
-    title.includes('question paper')
+    title.includes('sample paper')
   );
 }
 
@@ -306,121 +185,123 @@ function extractTestId(item) {
   );
 }
 
-/* =========================
-   PRICE
-========================= */
+function getTestQuestions(data) {
+  const candidates = [
+    data?.questions,
+    data?.data?.questions,
+    data?.data?.data?.questions,
+    data?.test?.questions,
+    data?.data?.test?.questions,
+    data?.items,
+    data?.data?.items,
+  ];
 
-function getPrice(item) {
-  const price =
-    item?.offer_price ??
-    item?.price ??
-    item?.data?.offer_price ??
-    item?.data?.price ??
-    '';
-
-  if (
-    price === '' ||
-    price === null ||
-    price === undefined
-  ) {
-    return 'FREE';
+  for (const value of candidates) {
+    if (Array.isArray(value)) {
+      return value;
+    }
   }
 
-  return String(price);
+  return [];
 }
 
-function getBatchImage(batch) {
+function getQuestionText(question) {
   return (
-    batch?.thumbnail ||
-    batch?.image ||
-    batch?.banner ||
+    question?.question ??
+    question?.question_text ??
+    question?.title ??
+    question?.text ??
+    question?.data?.question ??
+    question?.data?.question_text ??
     ''
   );
 }
 
-/* =========================
-   MAIN APP
-========================= */
+function getOptions(question) {
+  const options =
+    question?.options ??
+    question?.answers ??
+    question?.choices ??
+    question?.data?.options ??
+    [];
+
+  if (Array.isArray(options)) {
+    return options.map((option, index) => {
+      if (typeof option === 'string') {
+        return {
+          key: String.fromCharCode(65 + index),
+          text: option,
+        };
+      }
+
+      return {
+        key:
+          option?.key ??
+          option?.label ??
+          String.fromCharCode(65 + index),
+        text:
+          option?.text ??
+          option?.value ??
+          option?.option ??
+          option?.title ??
+          '',
+      };
+    });
+  }
+
+  if (options && typeof options === 'object') {
+    return Object.entries(options).map(([key, value]) => ({
+      key,
+      text:
+        typeof value === 'string'
+          ? value
+          : value?.text ??
+            value?.value ??
+            value?.title ??
+            '',
+    }));
+  }
+
+  return [];
+}
 
 export default function PrepMasterApp() {
+  const [page, setPage] = useState('home');
+
   const [batches, setBatches] = useState([]);
-  const [loadingBatches, setLoadingBatches] =
-    useState(true);
-  const [batchError, setBatchError] =
-    useState('');
+  const [loadingBatches, setLoadingBatches] = useState(true);
+  const [batchError, setBatchError] = useState('');
 
-  const [page, setPage] =
-    useState('home');
+  const [search, setSearch] = useState('');
 
-  const [search, setSearch] =
-    useState('');
+  const [enrolled, setEnrolled] = useState([]);
+  const [selectedBatch, setSelectedBatch] = useState(null);
 
-  const [selectedBatch, setSelectedBatch] =
-    useState(null);
+  const [contentItems, setContentItems] = useState([]);
+  const [contentLoading, setContentLoading] = useState(false);
+  const [contentError, setContentError] = useState('');
 
-  const [selectedFolder, setSelectedFolder] =
-    useState(null);
+  const [currentFolder, setCurrentFolder] = useState(null);
+  const [folderStack, setFolderStack] = useState([]);
 
-  const [contentItems, setContentItems] =
-    useState([]);
+  const [player, setPlayer] = useState(null);
+  const [playerLoading, setPlayerLoading] = useState(false);
+  const [playerError, setPlayerError] = useState('');
 
-  const [folderStack, setFolderStack] =
-    useState([]);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [enrollPopup, setEnrollPopup] = useState(null);
 
-  const [contentLoading, setContentLoading] =
-    useState(false);
-
-  const [contentError, setContentError] =
-    useState('');
-
-  const [player, setPlayer] =
-    useState(null);
-
-  const [menuOpen, setMenuOpen] =
-    useState(false);
-
-  const [enrollBatch, setEnrollBatch] =
-    useState(null);
-
-  const [enrolled, setEnrolled] =
-    useState([]);
-
-  const [testInstructions, setTestInstructions] =
-    useState(null);
-
-  const [testData, setTestData] =
-    useState(null);
-
-  const [testLoading, setTestLoading] =
-    useState(false);
-
-  const [testError, setTestError] =
-    useState('');
-
-  const [activeTest, setActiveTest] =
-    useState(null);
-
-  const [testAnswers, setTestAnswers] =
-    useState({});
-
-  const [testIndex, setTestIndex] =
-    useState(0);
-
-  const [testResult, setTestResult] =
-    useState(null);
-
-  /* =========================
-     INITIAL LOAD
-  ========================= */
+  const [testLoading, setTestLoading] = useState(false);
+  const [testError, setTestError] = useState('');
+  const [activeTest, setActiveTest] = useState(null);
+  const [testQuestions, setTestQuestions] = useState([]);
+  const [testAnswers, setTestAnswers] = useState({});
+  const [testResult, setTestResult] = useState(null);
 
   useEffect(() => {
-    loadBatches();
-
     try {
       const saved = JSON.parse(
-        localStorage.getItem(
-          'pm_enrolled'
-        ) || '[]'
+        localStorage.getItem('pm_enrolled') || '[]'
       );
 
       if (Array.isArray(saved)) {
@@ -440,276 +321,225 @@ export default function PrepMasterApp() {
     } catch {}
   }, [enrolled]);
 
-  /* =========================
-     LOAD BATCHES
-  ========================= */
+  useEffect(() => {
+    loadBatches();
+  }, []);
 
   async function loadBatches() {
     setLoadingBatches(true);
     setBatchError('');
 
     try {
-      const response = await fetch(
-        '/api/batches'
-      );
+      const response = await fetch('/api/batches', {
+        cache: 'no-store',
+      });
 
-      const data =
-        await response.json();
+      const json = await response.json();
 
-      if (
-        !response.ok ||
-        !data?.success
-      ) {
+      if (!response.ok || !json?.success) {
         throw new Error(
-          data?.error ||
-            'Unable to load batches.'
+          json?.error || 'Unable to load batches.'
         );
       }
 
       setBatches(
-        Array.isArray(data.batches)
-          ? data.batches
+        Array.isArray(json?.batches)
+          ? json.batches
           : []
       );
     } catch (error) {
       setBatchError(
-        error?.message ||
-          'Unable to load batches.'
+        error?.message || 'Unable to load batches.'
       );
     } finally {
       setLoadingBatches(false);
     }
   }
 
-  /* =========================
-     LOAD CONTENT
-  ========================= */
+  function isEnrolled(batch) {
+    const id = getId(batch);
 
-  async function loadContent(
-    courseId,
-    folderId = '0'
-  ) {
+    return enrolled.some(
+      (item) => String(getId(item)) === String(id)
+    );
+  }
+
+  function enrollBatch(batch) {
+    if (!batch) return;
+
+    if (!isEnrolled(batch)) {
+      setEnrolled((prev) => [...prev, batch]);
+    }
+
+    setEnrollPopup(batch);
+  }
+
+  function openBatch(batch) {
+    setSelectedBatch(batch);
+    setCurrentFolder(null);
+    setFolderStack([]);
+    setContentItems([]);
+    setContentError('');
+    setPage('batch');
+    loadContent(getId(batch), '0');
+  }
+
+  async function loadContent(courseId, folderId = '0') {
+    if (!courseId) return;
+
     setContentLoading(true);
     setContentError('');
 
     try {
-      const url =
+      const response = await fetch(
         `/api/content?content=${encodeURIComponent(
           courseId
-        )}&folder=${encodeURIComponent(
-          folderId
-        )}`;
+        )}&folder=${encodeURIComponent(folderId)}`,
+        {
+          cache: 'no-store',
+        }
+      );
 
-      const response =
-        await fetch(url);
+      const json = await response.json();
 
-      const data =
-        await response.json();
-
-      if (
-        !response.ok ||
-        !data?.success
-      ) {
+      if (!response.ok || !json?.success) {
         throw new Error(
-          data?.error ||
-            'Unable to load content.'
+          json?.error || 'Unable to load content.'
         );
       }
 
       setContentItems(
-        Array.isArray(data.data)
-          ? data.data
+        Array.isArray(json?.data)
+          ? json.data
           : []
       );
     } catch (error) {
       setContentItems([]);
       setContentError(
         error?.message ||
-          'Unable to load content.'
+          'Unable to load course content.'
       );
     } finally {
       setContentLoading(false);
     }
   }
 
-  /* =========================
-     OPEN BATCH
-  ========================= */
+  function openFolder(folder) {
+    if (!selectedBatch) return;
 
-  async function openBatch(batch) {
-    setSelectedBatch(batch);
-    setSelectedFolder(null);
-    setFolderStack([]);
-    setContentItems([]);
-    setContentError('');
-    setPage('content');
-
-    await loadContent(
-      getId(batch),
-      '0'
-    );
-  }
-
-  /* =========================
-     OPEN FOLDER
-  ========================= */
-
-  async function openFolder(folder) {
     const folderId = getId(folder);
-
-    if (
-      !folderId ||
-      !selectedBatch
-    ) {
-      return;
-    }
 
     setFolderStack((prev) => [
       ...prev,
       {
-        folder: selectedFolder,
-        items: contentItems,
+        id: folderId,
+        title: getTitle(folder),
       },
     ]);
 
-    setSelectedFolder(folder);
+    setCurrentFolder(folder);
 
-    await loadContent(
+    loadContent(
       getId(selectedBatch),
       folderId
     );
   }
 
-  /* =========================
-     BACK FOLDER
-  ========================= */
-
-  async function goBackFolder() {
-    if (!selectedBatch) {
-      return;
-    }
+  function goBackFolder() {
+    if (!selectedBatch) return;
 
     if (folderStack.length === 0) {
-      setSelectedFolder(null);
-
-      await loadContent(
-        getId(selectedBatch),
-        '0'
-      );
-
+      setCurrentFolder(null);
+      setContentItems([]);
+      setPage('home');
       return;
     }
 
-    const previous =
-      folderStack[
-        folderStack.length - 1
-      ];
+    const nextStack = [...folderStack];
+    nextStack.pop();
 
-    setFolderStack((prev) =>
-      prev.slice(0, -1)
+    setFolderStack(nextStack);
+
+    const parentId =
+      nextStack.length > 0
+        ? nextStack[nextStack.length - 1].id
+        : '0';
+
+    setCurrentFolder(
+      nextStack.length > 0
+        ? nextStack[nextStack.length - 1]
+        : null
     );
 
-    setSelectedFolder(
-      previous.folder
-    );
-
-    setContentItems(
-      previous.items || []
+    loadContent(
+      getId(selectedBatch),
+      parentId
     );
   }
 
-  /* =========================
-     VIDEO
-  ========================= */
-
   async function openVideo(item) {
-    if (!selectedBatch) {
+    if (!selectedBatch) return;
+
+    const contentId = getId(item);
+
+    if (!contentId) {
+      alert('Video ID unavailable.');
       return;
     }
 
-    const contentId =
-      getId(item);
-
-    const courseId =
-      getId(selectedBatch);
-
-    if (
-      !contentId ||
-      !courseId
-    ) {
-      alert(
-        'Video information is missing.'
-      );
-
-      return;
-    }
-
-    setPlayer({
-      type: 'loading',
-      title: getTitle(item),
-    });
+    setPlayerLoading(true);
+    setPlayerError('');
+    setPlayer(null);
 
     try {
-      const response =
-        await fetch(
-          `/api/playback?content_id=${encodeURIComponent(
-            contentId
-          )}&course_id=${encodeURIComponent(
-            courseId
-          )}`,
-          {
-            cache: 'no-store',
-          }
-        );
+      const response = await fetch(
+        `/api/playback?content_id=${encodeURIComponent(
+          contentId
+        )}&course_id=${encodeURIComponent(
+          getId(selectedBatch)
+        )}`,
+        {
+          cache: 'no-store',
+        }
+      );
 
-      const data =
-        await response.json();
+      const json = await response.json();
 
-      if (
-        !response.ok ||
-        !data?.success
-      ) {
+      if (!response.ok || !json?.success) {
         throw new Error(
-          data?.error ||
-            'Unable to load video.'
+          json?.error ||
+            'Unable to load video playback.'
         );
       }
 
-      if (!data.url) {
+      if (!json?.url) {
         throw new Error(
-          'No playable video URL found.'
+          'No playable video URL was returned.'
         );
       }
 
       setPlayer({
         type: 'video',
         title: getTitle(item),
-        url: data.url,
+        url: json.url,
       });
     } catch (error) {
-      setPlayer({
-        type: 'error',
-        title: getTitle(item),
-        error:
-          error?.message ||
-          'Unable to play video.',
-      });
+      setPlayerError(
+        error?.message ||
+          'Unable to load video.'
+      );
+    } finally {
+      setPlayerLoading(false);
     }
   }
 
-  /* =========================
-     PDF
-  ========================= */
-
   function openPdf(item) {
-    const url =
-      getPdfUrl(item);
+    const url = getPdfUrl(item);
 
     if (!url) {
       alert(
-        'Is item ka PDF URL API response me available nahi hai.'
+        'Is note ka PDF source available nahi hai. Source API ne actual PDF URL provide nahi kiya.'
       );
-
       return;
     }
 
@@ -720,1612 +550,621 @@ export default function PrepMasterApp() {
     });
   }
 
-  /* =========================
-     TEST
-  ========================= */
-
   async function openTest(item) {
-    const testId =
-      extractTestId(item) ||
-      getId(selectedBatch);
+    const testId = extractTestId(item);
 
     if (!testId) {
-      setPlayer({
-        type: 'error',
-        title: getTitle(item),
-        error:
-          'Test ID API response me nahi mila.',
-      });
-
+      alert('Test ID unavailable.');
       return;
     }
 
     setTestLoading(true);
     setTestError('');
-    setTestInstructions(null);
-    setTestData(null);
-    setActiveTest(null);
     setTestResult(null);
-
-    setPlayer({
-      type: 'test-loading',
+    setTestQuestions([]);
+    setTestAnswers({});
+    setActiveTest({
+      id: String(testId),
       title: getTitle(item),
+      item,
     });
 
     try {
-      const response =
-        await fetch(
-          `/api/test?test_instructions=${encodeURIComponent(
-            testId
-          )}`,
-          {
-            cache: 'no-store',
-          }
-        );
+      const response = await fetch(
+        `/api/test?test_instructions=${encodeURIComponent(
+          testId
+        )}`,
+        {
+          cache: 'no-store',
+        }
+      );
 
-      const data =
-        await response.json();
+      const json = await response.json();
 
-      if (
-        !response.ok ||
-        !data?.success
-      ) {
+      if (!response.ok || !json?.success) {
         throw new Error(
-          data?.error ||
-            'Unable to load test instructions.'
+          json?.error ||
+            `Test source returned HTTP ${response.status}`
         );
       }
 
-      setTestInstructions(
-        data.data
+      setTestQuestions(
+        getTestQuestions(json?.data)
       );
-
-      setPlayer({
-        type: 'test-instructions',
-        title: getTitle(item),
-        testId,
-      });
     } catch (error) {
       setTestError(
         error?.message ||
           'Unable to load test instructions.'
       );
-
-      setPlayer({
-        type: 'error',
-        title: getTitle(item),
-        error:
-          error?.message ||
-          'Unable to load test.',
-      });
     } finally {
       setTestLoading(false);
     }
   }
 
-  async function startTest(
-    testId,
-    title
-  ) {
+  async function startTest() {
+    if (!activeTest?.id) return;
+
     setTestLoading(true);
     setTestError('');
 
     try {
-      const response =
-        await fetch(
-          `/api/test?test_data=${encodeURIComponent(
-            testId
-          )}`,
-          {
-            cache: 'no-store',
-          }
-        );
+      const response = await fetch(
+        `/api/test?test_data=${encodeURIComponent(
+          activeTest.id
+        )}`,
+        {
+          cache: 'no-store',
+        }
+      );
 
-      const data =
-        await response.json();
+      const json = await response.json();
 
-      if (
-        !response.ok ||
-        !data?.success
-      ) {
+      if (!response.ok || !json?.success) {
         throw new Error(
-          data?.error ||
-            'Unable to load test questions.'
+          json?.error ||
+            `Test source returned HTTP ${response.status}`
         );
       }
 
-      const questions =
-        normalizeQuestions(
-          data.data
-        );
+      const questions = getTestQuestions(
+        json?.data
+      );
 
-      if (!questions.length) {
-        throw new Error(
-          'Test questions API me nahi mile.'
-        );
-      }
-
-      setTestData(data.data);
-
-      setActiveTest({
-        id: testId,
-        title,
-        questions,
-      });
-
+      setTestQuestions(questions);
       setTestAnswers({});
-      setTestIndex(0);
       setTestResult(null);
-
-      setPlayer({
-        type: 'test',
-        title,
-      });
     } catch (error) {
       setTestError(
         error?.message ||
-          'Unable to load test questions.'
+          'Unable to load test data.'
       );
-
-      setPlayer({
-        type: 'error',
-        title,
-        error:
-          error?.message ||
-          'Unable to load test.',
-      });
     } finally {
       setTestLoading(false);
     }
   }
 
-  function normalizeQuestions(data) {
-    if (Array.isArray(data)) {
-      return data;
-    }
-
-    if (
-      !data ||
-      typeof data !== 'object'
-    ) {
-      return [];
-    }
-
-    const candidates = [
-      data.questions,
-      data.question,
-      data.data,
-      data.test?.questions,
-      data.test_data,
-      data.items,
-    ];
-
-    for (
-      const candidate of candidates
-    ) {
-      if (Array.isArray(candidate)) {
-        return candidate;
-      }
-    }
-
-    return [];
-  }
-
-  function getQuestionText(question) {
-    return (
-      question?.question ??
-      question?.question_text ??
-      question?.title ??
-      question?.text ??
-      question?.data?.question ??
-      question?.data?.question_text ??
-      'Question'
-    );
-  }
-
-  function getOptions(question) {
-    const options =
-      question?.options ??
-      question?.answers ??
-      question?.choices ??
-      question?.data?.options ??
-      [];
-
-    if (Array.isArray(options)) {
-      return options;
-    }
-
-    if (
-      options &&
-      typeof options === 'object'
-    ) {
-      return Object.entries(
-        options
-      ).map(
-        ([key, value]) => ({
-          key,
-          text:
-            typeof value ===
-            'object'
-              ? value?.text ??
-                value?.title ??
-                value?.value ??
-                ''
-              : String(value),
-        })
-      );
-    }
-
-    return [];
-  }
-
-  function getOptionText(option) {
-    if (
-      typeof option ===
-        'string' ||
-      typeof option ===
-        'number'
-    ) {
-      return String(option);
-    }
-
-    return (
-      option?.text ??
-      option?.title ??
-      option?.label ??
-      option?.value ??
-      ''
-    );
-  }
-
-  function getOptionKey(
-    option,
-    index
-  ) {
-    if (
-      typeof option ===
-        'string' ||
-      typeof option ===
-        'number'
-    ) {
-      return String(index);
-    }
-
-    return String(
-      option?.id ??
-        option?.key ??
-        option?.value ??
-        index
-    );
-  }
-
-  function selectAnswer(
-    questionIndex,
-    value
-  ) {
-    setTestAnswers((prev) => ({
-      ...prev,
-      [questionIndex]: value,
-    }));
-  }
-
-  function calculateResult() {
-    if (!activeTest) {
-      return;
-    }
+  function submitLocalTest() {
+    if (!testQuestions.length) return;
 
     let correct = 0;
-    let attempted = 0;
 
-    activeTest.questions.forEach(
+    testQuestions.forEach(
       (question, index) => {
-        const answer =
+        const selected =
           testAnswers[index];
 
-        if (
-          answer !== undefined &&
-          answer !== null &&
-          answer !== ''
-        ) {
-          attempted++;
-        }
-
-        const correctAnswer =
+        const answer =
           question?.correct_answer ??
           question?.correctAnswer ??
           question?.answer ??
-          question?.correct_option ??
-          question?.data?.correct_answer;
+          question?.data?.correct_answer ??
+          question?.data?.correctAnswer;
 
         if (
-          correctAnswer !==
-            undefined &&
-          String(answer) ===
-            String(correctAnswer)
+          selected != null &&
+          answer != null &&
+          String(selected).toLowerCase() ===
+            String(answer).toLowerCase()
         ) {
-          correct++;
+          correct += 1;
         }
       }
     );
 
     setTestResult({
-      total:
-        activeTest.questions.length,
-      attempted,
       correct,
-    });
-
-    setPlayer({
-      type: 'test-result',
-      title: activeTest.title,
+      total: testQuestions.length,
     });
   }
-
-  /* =========================
-     ENROLL
-  ========================= */
-
-  function enroll(batch) {
-    const batchId =
-      getId(batch);
-
-    setEnrolled((prev) => {
-      if (
-        prev.some(
-          (item) =>
-            getId(item) === batchId
-        )
-      ) {
-        return prev;
-      }
-
-      return [
-        ...prev,
-        batch,
-      ];
-    });
-
-    setEnrollBatch(null);
-  }
-
-  function isEnrolled(batch) {
-    return enrolled.some(
-      (item) =>
-        getId(item) ===
-        getId(batch)
-    );
-  }
-
-  /* =========================
-     FILTER
-  ========================= */
-
-  const filteredBatches =
-    useMemo(() => {
-      const q =
-        search
-          .trim()
-          .toLowerCase();
-
-      if (!q) {
-        return batches;
-      }
-
-      return batches.filter(
-        (batch) => {
-          const text = [
-            batch?.title,
-            batch?.description,
-            batch?.name,
-          ]
-            .filter(Boolean)
-            .join(' ')
-            .toLowerCase();
-
-          return text.includes(q);
-        }
-      );
-    }, [batches, search]);
-
-  const folders =
-    contentItems.filter(
-      (item) => isFolder(item)
-    );
-
-  const files =
-    contentItems.filter(
-      (item) => !isFolder(item)
-    );
-
-  /* =========================
-     NAVIGATION
-  ========================= */
 
   function closePlayer() {
     setPlayer(null);
+    setPlayerError('');
   }
 
-  function goHome() {
-    setPage('home');
-    setSelectedBatch(null);
-    setSelectedFolder(null);
-    setFolderStack([]);
-    setContentItems([]);
-    setPlayer(null);
-    setMenuOpen(false);
+  function closeTest() {
+    setActiveTest(null);
+    setTestQuestions([]);
+    setTestAnswers({});
+    setTestError('');
+    setTestResult(null);
   }
 
-  function goMyBatches() {
-    setPage('my-batches');
-    setMenuOpen(false);
-  }
+  const filteredBatches = useMemo(() => {
+    const q = search.trim().toLowerCase();
 
-  function goBatches() {
-    setPage('home');
-    setMenuOpen(false);
-  }
+    if (!q) return batches;
 
-  /* =========================
-     RENDER
-  ========================= */
+    return batches.filter((batch) => {
+      const text = [
+        batch?.title,
+        batch?.description,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
 
-  return (
-    <div className="pm-app">
+      return text.includes(q);
+    });
+  }, [batches, search]);
 
-      {/* HEADER */}
+  const enrolledBatches = useMemo(
+    () => enrolled,
+    [enrolled]
+  );
 
-      <header className="pm-header">
-        <button
-          className="pm-brand"
-          onClick={goHome}
-          type="button"
-        >
+  function renderBatchCard(batch) {
+    const enrolledNow = isEnrolled(batch);
+
+    return (
+      <div className="pm-card" key={getId(batch)}>
+        {getBatchImage(batch) ? (
           <img
-            src="/prep-master-logo.png"
-            alt="Prep Master"
-            className="pm-logo"
+            className="pm-card-image"
+            src={getBatchImage(batch)}
+            alt={getTitle(batch)}
+            loading="lazy"
             decoding="async"
           />
+        ) : (
+          <div className="pm-card-placeholder">
+            📚
+          </div>
+        )}
 
-          <span className="pm-brand-name">
-            Prep Master
-          </span>
-        </button>
+        <div className="pm-card-body">
+          <h3>{getTitle(batch)}</h3>
 
-        <button
-          className="pm-menu-btn"
-          onClick={() =>
-            setMenuOpen(
-              !menuOpen
-            )
-          }
-          type="button"
-          aria-label="Menu"
-        >
-          ⋮
-        </button>
-      </header>
+          {getDescription(batch) && (
+            <p>{getDescription(batch)}</p>
+          )}
 
-      {/* MENU */}
+          <div className="pm-price">
+            {getPrice(batch) === 'FREE'
+              ? 'FREE'
+              : `₹${getPrice(batch)}`}
+          </div>
 
-      {menuOpen && (
-        <div
-          className="pm-menu-overlay"
-          onClick={() =>
-            setMenuOpen(false)
-          }
-        >
-          <div
-            className="pm-menu"
-            onClick={(e) =>
-              e.stopPropagation()
-            }
-          >
-            <div className="pm-menu-title">
-              Prep Master
-            </div>
-
+          <div className="pm-card-actions">
             <button
-              onClick={goBatches}
-              className="pm-menu-item"
+              className="pm-secondary"
+              onClick={() => openBatch(batch)}
             >
-              📚 <span>Batches</span>
+              Study
             </button>
 
             <button
-              onClick={goMyBatches}
-              className="pm-menu-item"
-            >
-              📖 <span>My Batches</span>
-            </button>
-
-            <button
+              className="pm-primary"
               onClick={() =>
-                window.open(
-                  TELEGRAM_URL,
-                  '_blank',
-                  'noopener,noreferrer'
-                )
+                enrolledNow
+                  ? openBatch(batch)
+                  : enrollBatch(batch)
               }
-              className="pm-menu-item"
             >
-              ✈️ <span>Join Telegram</span>
-            </button>
-
-            <button
-              onClick={() =>
-                window.open(
-                  OWNER_URL,
-                  '_blank',
-                  'noopener,noreferrer'
-                )
-              }
-              className="pm-menu-item"
-            >
-              👤 <span>Contact Owner</span>
-            </button>
-
-            <button
-              onClick={() => {
-                setMenuOpen(false);
-                setPage('admin');
-              }}
-              className="pm-menu-item"
-            >
-              ⚙️ <span>Admin Panel</span>
+              {enrolledNow ? 'Enrolled' : 'Enroll'}
             </button>
           </div>
         </div>
-      )}
+      </div>
+    );
+  }
 
-      {/* MAIN */}
+  function renderContentItem(item, index) {
+    const folder = isFolder(item);
+    const video = isVideo(item);
+    const pdf = isPdf(item);
+    const test = isTest(item);
 
-      <main className="pm-main">
+    let icon = '📄';
 
-        {/* HOME */}
+    if (folder) icon = '📁';
+    else if (video) icon = '🎥';
+    else if (pdf) icon = '📄';
+    else if (test) icon = '📝';
 
-        {page === 'home' && (
-          <>
-            <input
-              className="pm-search"
-              value={search}
-              onChange={(e) =>
-                setSearch(
-                  e.target.value
-                )
-              }
-              placeholder="Search batches..."
-            />
+    const locked =
+      item?.is_locked === 1 ||
+      item?.data?.is_locked === 1;
 
-            <div className="pm-section-head">
-              <h1 className="pm-section-title">
-                Batches
-              </h1>
+    return (
+      <div
+        className="pm-content-item"
+        key={`${getId(item)}-${index}`}
+        onClick={() => {
+          if (folder) {
+            openFolder(item);
+          } else if (video) {
+            openVideo(item);
+          } else if (pdf) {
+            openPdf(item);
+          } else if (test) {
+            openTest(item);
+          } else {
+            alert(
+              'Is content type ka viewer abhi available nahi hai.'
+            );
+          }
+        }}
+      >
+        <div className="pm-content-icon">
+          {icon}
+        </div>
+
+        <div className="pm-content-info">
+          <div className="pm-content-title">
+            {getTitle(item)}
+          </div>
+
+          <div className="pm-content-meta">
+            {folder
+              ? 'Folder'
+              : video
+              ? 'Video'
+              : pdf
+              ? 'Notes / PDF'
+              : test
+              ? 'Test'
+              : 'Content'}
+
+            {locked ? ' • 🔒' : ''}
+          </div>
+        </div>
+
+        <div className="pm-content-arrow">
+          →
+        </div>
+      </div>
+    );
+  }
+
+  function HomePage() {
+    return (
+      <>
+        <div className="pm-hero">
+          <div>
+            <div className="pm-small">
+              WELCOME TO
             </div>
 
-            {loadingBatches && (
-              <div className="pm-loading-box">
-                Loading batches...
-              </div>
-            )}
-
-            {batchError && (
-              <div className="pm-error-box">
-                {batchError}
-                <button
-                  className="pm-retry"
-                  onClick={
-                    loadBatches
-                  }
-                >
-                  Retry
-                </button>
-              </div>
-            )}
-
-            {!loadingBatches &&
-              !batchError &&
-              filteredBatches.length ===
-                0 && (
-                <div className="pm-empty-box">
-                  No batches found.
-                </div>
-              )}
-
-            <div className="pm-grid">
-              {filteredBatches.map(
-                (batch) => (
-                  <div
-                    className="pm-card"
-                    key={getId(
-                      batch
-                    )}
-                  >
-                    {getBatchImage(
-                      batch
-                    ) ? (
-                      <img
-                        className="pm-card-image"
-                        src={getBatchImage(
-                          batch
-                        )}
-                        alt={
-                          getTitle(
-                            batch
-                          )
-                        }
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    ) : (
-                      <div className="pm-card-image pm-image-placeholder">
-                        📚
-                      </div>
-                    )}
-
-                    <div className="pm-card-body">
-                      <h2 className="pm-card-title">
-                        {getTitle(
-                          batch
-                        )}
-                      </h2>
-
-                      {getDescription(
-                        batch
-                      ) && (
-                        <p className="pm-card-desc">
-                          {getDescription(
-                            batch
-                          )}
-                        </p>
-                      )}
-
-                      <div className="pm-price">
-                        ₹
-                        {getPrice(
-                          batch
-                        )}
-                      </div>
-
-                      <div className="pm-actions">
-                        <button
-                          className="pm-btn pm-btn-light"
-                          onClick={() =>
-                            openBatch(
-                              batch
-                            )
-                          }
-                        >
-                          Study
-                        </button>
-
-                        {isEnrolled(
-                          batch
-                        ) ? (
-                          <button
-                            className="pm-btn pm-btn-primary"
-                            onClick={() =>
-                              openBatch(
-                                batch
-                              )
-                            }
-                          >
-                            Open
-                          </button>
-                        ) : (
-                          <button
-                            className="pm-btn pm-btn-primary"
-                            onClick={() =>
-                              setEnrollBatch(
-                                batch
-                              )
-                            }
-                          >
-                            Enroll
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )
-              )}
-            </div>
-          </>
-        )}
-
-        {/* MY BATCHES */}
-
-        {page === 'my-batches' && (
-          <>
-            <div className="pm-section-head">
-              <h1 className="pm-section-title">
-                My Batches
-              </h1>
-
-              <button
-                className="pm-back"
-                onClick={goHome}
-              >
-                ← Back
-              </button>
-            </div>
-
-            {enrolled.length ===
-              0 && (
-              <div className="pm-empty-box">
-                You haven't enrolled in
-                any batch yet.
-              </div>
-            )}
-
-            <div className="pm-grid">
-              {enrolled.map(
-                (batch) => (
-                  <div
-                    className="pm-card"
-                    key={getId(
-                      batch
-                    )}
-                  >
-                    {getBatchImage(
-                      batch
-                    ) ? (
-                      <img
-                        className="pm-card-image"
-                        src={getBatchImage(
-                          batch
-                        )}
-                        alt={
-                          getTitle(
-                            batch
-                          )
-                        }
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    ) : (
-                      <div className="pm-card-image pm-image-placeholder">
-                        📚
-                      </div>
-                    )}
-
-                    <div className="pm-card-body">
-                      <h2 className="pm-card-title">
-                        {getTitle(
-                          batch
-                        )}
-                      </h2>
-
-                      <button
-                        className="pm-btn pm-btn-primary pm-full-btn"
-                        onClick={() =>
-                          openBatch(
-                            batch
-                          )
-                        }
-                      >
-                        Continue Study
-                      </button>
-                    </div>
-                  </div>
-                )
-              )}
-            </div>
-          </>
-        )}
-
-        {/* CONTENT */}
-
-        {page === 'content' && (
-          <>
-            <div className="pm-section-head">
-              <div>
-                <h1 className="pm-section-title">
-                  {selectedFolder
-                    ? getTitle(
-                        selectedFolder
-                      )
-                    : getTitle(
-                        selectedBatch
-                      )}
-                </h1>
-
-                {selectedFolder && (
-                  <div className="pm-breadcrumb">
-                    {getTitle(
-                      selectedBatch
-                    )}{' '}
-                    /{' '}
-                    {getTitle(
-                      selectedFolder
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <button
-                className="pm-back"
-                onClick={
-                  selectedFolder
-                    ? goBackFolder
-                    : goHome
-                }
-              >
-                ← Back
-              </button>
-            </div>
-
-            {contentLoading && (
-              <div className="pm-loading-box">
-                Loading content...
-              </div>
-            )}
-
-            {contentError && (
-              <div className="pm-error-box">
-                {contentError}
-
-                <button
-                  className="pm-retry"
-                  onClick={() =>
-                    loadContent(
-                      getId(
-                        selectedBatch
-                      ),
-                      selectedFolder
-                        ? getId(
-                            selectedFolder
-                          )
-                        : '0'
-                    )
-                  }
-                >
-                  Retry
-                </button>
-              </div>
-            )}
-
-            {!contentLoading &&
-              !contentError &&
-              contentItems.length ===
-                0 && (
-                <div className="pm-empty-box">
-                  No content found.
-                </div>
-              )}
-
-            {/* FOLDERS */}
-
-            {folders.length > 0 && (
-              <section>
-                <h2 className="pm-subtitle">
-                  Folders
-                </h2>
-
-                <div className="pm-content-grid">
-                  {folders.map(
-                    (folder) => (
-                      <button
-                        key={getId(
-                          folder
-                        )}
-                        className="pm-content-card"
-                        onClick={() =>
-                          openFolder(
-                            folder
-                          )
-                        }
-                      >
-                        <div className="pm-content-icon">
-                          📁
-                        </div>
-
-                        <div className="pm-content-info">
-                          <strong>
-                            {getTitle(
-                              folder
-                            )}
-                          </strong>
-
-                          <span>
-                            Open folder
-                          </span>
-                        </div>
-
-                        <span className="pm-arrow">
-                          →
-                        </span>
-                      </button>
-                    )
-                  )}
-                </div>
-              </section>
-            )}
-
-            {/* FILES */}
-
-            {files.length > 0 && (
-              <section>
-                <h2 className="pm-subtitle">
-                  Content
-                </h2>
-
-                <div className="pm-content-grid">
-                  {files.map(
-                    (item, index) => {
-                      const video =
-                        isVideo(
-                          item
-                        );
-
-                      const pdf =
-                        isPdf(
-                          item
-                        );
-
-                      const test =
-                        isTest(
-                          item
-                        );
-
-                      let icon =
-                        '📄';
-
-                      let typeLabel =
-                        'Content';
-
-                      if (video) {
-                        icon = '▶️';
-                        typeLabel =
-                          'Video';
-                      } else if (pdf) {
-                        icon = '📕';
-                        typeLabel =
-                          'PDF';
-                      } else if (test) {
-                        icon = '📝';
-                        typeLabel =
-                          'Test';
-                      }
-
-                      return (
-                        <button
-                          key={
-                            getId(
-                              item
-                            ) ||
-                            index
-                          }
-                          className="pm-content-card"
-                          onClick={() => {
-                            if (
-                              video
-                            ) {
-                              openVideo(
-                                item
-                              );
-                            } else if (
-                              pdf
-                            ) {
-                              openPdf(
-                                item
-                              );
-                            } else if (
-                              test
-                            ) {
-                              openTest(
-                                item
-                              );
-                            } else {
-                              /*
-                               * Better fallback:
-                               * Some APIs don't expose
-                               * the type clearly.
-                               */
-                              const possibleUrl =
-                                item?.file_url ||
-                                item?.data
-                                  ?.file_url ||
-                                item?.url ||
-                                item?.data
-                                  ?.url ||
-                                '';
-
-                              if (
-                                /\.m3u8|\.mp4/i.test(
-                                  possibleUrl
-                                )
-                              ) {
-                                openVideo(
-                                  item
-                                );
-                              } else if (
-                                /\.pdf/i.test(
-                                  possibleUrl
-                                )
-                              ) {
-                                openPdf(
-                                  item
-                                );
-                              } else {
-                                setPlayer({
-                                  type: 'unsupported',
-                                  title:
-                                    getTitle(
-                                      item
-                                    ),
-                                  item,
-                                });
-                              }
-                            }
-                          }}
-                        >
-                          <div className="pm-content-icon">
-                            {icon}
-                          </div>
-
-                          <div className="pm-content-info">
-                            <strong>
-                              {getTitle(
-                                item
-                              )}
-                            </strong>
-
-                            <span>
-                              {typeLabel}
-                            </span>
-                          </div>
-
-                          <span className="pm-arrow">
-                            →
-                          </span>
-                        </button>
-                      );
-                    }
-                  )}
-                </div>
-              </section>
-            )}
-          </>
-        )}
-
-        {/* COMING SOON */}
-
-        {page === 'community' && (
-          <ComingSoon
-            icon="💬"
-            title="Community"
-          />
-        )}
-
-        {page === 'ai' && (
-          <ComingSoon
-            icon="🤖"
-            title="AI Doubts"
-          />
-        )}
-
-        {/* ADMIN */}
-
-        {page === 'admin' && (
-          <ComingSoon
-            icon="⚙️"
-            title="Admin Panel"
-          />
-        )}
-      </main>
-
-      {/* BOTTOM NAV */}
-
-      <nav className="pm-bottom-nav">
-
-        <button
-          className={
-            page === 'community'
-              ? 'pm-nav-active'
-              : ''
-          }
-          onClick={() =>
-            setPage('community')
-          }
-        >
-          <span>💬</span>
-          Community
-        </button>
-
-        <button
-          className={
-            page === 'my-batches'
-              ? 'pm-nav-active'
-              : ''
-          }
-          onClick={
-            goMyBatches
-          }
-        >
-          <span>📖</span>
-          My Batches
-        </button>
-
-        <button
-          className={
-            page === 'home' ||
-            page === 'content'
-              ? 'pm-nav-main'
-              : ''
-          }
-          onClick={goHome}
-        >
-          <span>📚</span>
-          Batches
-        </button>
-
-        <button
-          className={
-            page === 'ai'
-              ? 'pm-nav-active'
-              : ''
-          }
-          onClick={() =>
-            setPage('ai')
-          }
-        >
-          <span>🤖</span>
-          AI Doubts
-        </button>
-
-      </nav>
-
-      {/* ENROLL POPUP */}
-
-      {enrollBatch && (
-        <div className="pm-modal-overlay">
-          <div className="pm-enroll-modal">
-            <div className="pm-success-icon">
-              🎉
-            </div>
-
-            <h2>
-              Congratulations 🎉
-            </h2>
+            <h1>Prep Master</h1>
 
             <p>
-              You have successfully
-              enrolled in
-              <strong>
-                {' '}
-                {getTitle(
-                  enrollBatch
-                )}
-              </strong>
-              .
+              Learn smarter. Prepare better.
+            </p>
+          </div>
+        </div>
+
+        <div className="pm-search-wrap">
+          <span>🔍</span>
+
+          <input
+            value={search}
+            onChange={(e) =>
+              setSearch(e.target.value)
+            }
+            placeholder="Search batches..."
+          />
+        </div>
+
+        <div className="pm-section-head">
+          <h2>Batches</h2>
+
+          <button onClick={loadBatches}>
+            ↻
+          </button>
+        </div>
+
+        {loadingBatches ? (
+          <div className="pm-state">
+            Loading batches...
+          </div>
+        ) : batchError ? (
+          <div className="pm-error">
+            {batchError}
+          </div>
+        ) : filteredBatches.length === 0 ? (
+          <div className="pm-state">
+            No batches found.
+          </div>
+        ) : (
+          <div className="pm-grid">
+            {filteredBatches.map(
+              renderBatchCard
+            )}
+          </div>
+        )}
+      </>
+    );
+  }
+
+  function MyBatchesPage() {
+    return (
+      <>
+        <div className="pm-page-title">
+          <h1>My Batches</h1>
+          <p>Your enrolled batches</p>
+        </div>
+
+        {enrolledBatches.length === 0 ? (
+          <div className="pm-empty">
+            <div>📚</div>
+            <h3>No enrolled batches</h3>
+            <p>
+              Enroll in a batch to see it here.
             </p>
 
             <button
-              className="pm-btn pm-btn-primary pm-full-btn"
-              onClick={() =>
-                enroll(
-                  enrollBatch
-                )
-              }
+              className="pm-primary pm-small-button"
+              onClick={() => setPage('home')}
             >
-              Continue
+              Browse Batches
             </button>
           </div>
+        ) : (
+          <div className="pm-grid">
+            {enrolledBatches.map(
+              renderBatchCard
+            )}
+          </div>
+        )}
+      </>
+    );
+  }
+
+  function ComingSoon({ title, icon }) {
+    return (
+      <div className="pm-coming">
+        <div className="pm-coming-icon">
+          {icon}
         </div>
-      )}
 
-      {/* PLAYER */}
+        <h2>{title}</h2>
 
-      {player && (
-        <div className="pm-player-overlay">
-          <div className="pm-player">
+        <p>
+          This feature is coming soon.
+        </p>
+      </div>
+    );
+  }
 
-            <div className="pm-player-header">
-              <div className="pm-player-title">
-                {player.title}
+  function BatchPage() {
+    return (
+      <>
+        <div className="pm-page-title pm-batch-head">
+          <div>
+            <button
+              className="pm-back"
+              onClick={goBackFolder}
+            >
+              ← Back
+            </button>
+
+            <h1>
+              {currentFolder
+                ? currentFolder.title
+                : getTitle(selectedBatch)}
+            </h1>
+
+            <p>
+              {currentFolder
+                ? 'Course content'
+                : 'Study materials'}
+            </p>
+          </div>
+        </div>
+
+        {contentLoading ? (
+          <div className="pm-state">
+            Loading content...
+          </div>
+        ) : contentError ? (
+          <div className="pm-error">
+            {contentError}
+          </div>
+        ) : contentItems.length === 0 ? (
+          <div className="pm-empty">
+            <div>📂</div>
+            <h3>No content found</h3>
+            <p>
+              There is no content in this folder.
+            </p>
+          </div>
+        ) : (
+          <div className="pm-content-list">
+            {contentItems.map(
+              renderContentItem
+            )}
+          </div>
+        )}
+      </>
+    );
+  }
+
+  function TestScreen() {
+    if (!activeTest) return null;
+
+    return (
+      <div className="pm-test-overlay">
+        <div className="pm-test-card">
+          <div className="pm-test-top">
+            <button
+              onClick={closeTest}
+              className="pm-back"
+            >
+              ← Close
+            </button>
+
+            <h2>{activeTest.title}</h2>
+          </div>
+
+          {testLoading ? (
+            <div className="pm-state">
+              Loading test...
+            </div>
+          ) : testError ? (
+            <div className="pm-error">
+              {testError}
+
+              <button
+                className="pm-primary pm-retry"
+                onClick={startTest}
+              >
+                Retry
+              </button>
+            </div>
+          ) : testQuestions.length === 0 ? (
+            <div className="pm-empty">
+              <div>📝</div>
+              <h3>Test data unavailable</h3>
+              <p>
+                Try loading the test again.
+              </p>
+
+              <button
+                className="pm-primary pm-small-button"
+                onClick={startTest}
+              >
+                Start Test
+              </button>
+            </div>
+          ) : testResult ? (
+            <div className="pm-test-result">
+              <div className="pm-result-icon">
+                🎉
+              </div>
+
+              <h2>Test Completed</h2>
+
+              <div className="pm-score">
+                {testResult.correct} /{' '}
+                {testResult.total}
               </div>
 
               <button
-                className="pm-close-btn"
-                onClick={
-                  closePlayer
-                }
+                className="pm-primary pm-small-button"
+                onClick={() => {
+                  setTestResult(null);
+                  setTestAnswers({});
+                }}
               >
-                ✕
+                Try Again
               </button>
             </div>
-
-            {/* LOADING */}
-
-            {player.type ===
-              'loading' && (
-              <div className="pm-player-center">
-                <div className="pm-spinner" />
-                <p>
-                  Loading video...
-                </p>
-              </div>
-            )}
-
-            {/* VIDEO */}
-
-            {player.type ===
-              'video' && (
-              <div className="pm-video-wrap">
-                <video
-                  className="pm-video"
-                  controls
-                  autoPlay
-                  playsInline
-                  preload="metadata"
-                  src={player.url}
-                />
-              </div>
-            )}
-
-            {/* PDF */}
-
-            {player.type ===
-              'pdf' && (
-              <div className="pm-pdf-wrap">
-                <iframe
-                  src={player.url}
-                  title={
-                    player.title
-                  }
-                  className="pm-pdf"
-                />
-              </div>
-            )}
-
-            {/* TEST LOADING */}
-
-            {player.type ===
-              'test-loading' && (
-              <div className="pm-player-center">
-                <div className="pm-spinner" />
-                <p>
-                  Loading test...
-                </p>
-              </div>
-            )}
-
-            {/* TEST INSTRUCTIONS */}
-
-            {player.type ===
-              'test-instructions' && (
-              <div className="pm-test-box">
-
-                <h2>
-                  {player.title}
-                </h2>
-
-                <div className="pm-test-instructions">
-                  {renderInstructions(
-                    testInstructions
-                  )}
-                </div>
-
-                {testError && (
-                  <div className="pm-test-error">
-                    {testError}
-                  </div>
-                )}
-
-                <button
-                  className="pm-btn pm-btn-primary pm-full-btn"
-                  disabled={
-                    testLoading
-                  }
-                  onClick={() =>
-                    startTest(
-                      player.testId,
-                      player.title
-                    )
-                  }
-                >
-                  {testLoading
-                    ? 'Loading...'
-                    : 'Start Test'}
-                </button>
-              </div>
-            )}
-
-            {/* TEST */}
-
-            {player.type ===
-              'test' &&
-              activeTest && (
-                <div className="pm-test-box">
-
-                  <div className="pm-test-progress">
-                    Question{' '}
-                    {testIndex + 1}{' '}
-                    of{' '}
-                    {
-                      activeTest
-                        .questions
-                        .length
-                    }
-                  </div>
-
-                  {(() => {
-                    const question =
-                      activeTest
-                        .questions[
-                        testIndex
-                      ];
-
+          ) : (
+            <>
+              <div className="pm-test-questions">
+                {testQuestions.map(
+                  (question, index) => {
                     const options =
-                      getOptions(
-                        question
-                      );
+                      getOptions(question);
 
                     return (
-                      <>
-                        <h2 className="pm-question">
+                      <div
+                        className="pm-question"
+                        key={index}
+                      >
+                        <h3>
+                          {index + 1}.{' '}
                           {getQuestionText(
                             question
                           )}
-                        </h2>
+                        </h3>
 
                         <div className="pm-options">
                           {options.map(
-                            (
-                              option,
-                              optionIndex
-                            ) => {
-                              const key =
-                                getOptionKey(
-                                  option,
-                                  optionIndex
-                                );
-
-                              const selected =
-                                String(
-                                  testAnswers[
-                                    testIndex
-                                  ]
-                                ) ===
-                                String(
-                                  key
-                                );
-
-                              return (
-                                <button
-                                  key={
-                                    key
+                            (option) => (
+                              <label
+                                className={`pm-option ${
+                                  String(
+                                    testAnswers[
+                                      index
+                                    ] ?? ''
+                                  ) ===
+                                  String(
+                                    option.key
+                                  )
+                                    ? 'selected'
+                                    : ''
+                                }`}
+                                key={option.key}
+                              >
+                                <input
+                                  type="radio"
+                                  name={`q-${index}`}
+                                  value={
+                                    option.key
                                   }
-                                  className={
-                                    selected
-                                      ? 'pm-option pm-option-selected'
-                                      : 'pm-option'
-                                  }
-                                  onClick={() =>
-                                    selectAnswer(
-                                      testIndex,
-                                      key
+                                  checked={
+                                    String(
+                                      testAnswers[
+                                        index
+                                      ] ?? ''
+                                    ) ===
+                                    String(
+                                      option.key
                                     )
                                   }
-                                >
-                                  <span className="pm-option-letter">
-                                    {String.fromCharCode(
-                                      65 +
-                                        optionIndex
-                                    )}
-                                  </span>
+                                  onChange={() =>
+                                    setTestAnswers(
+                                      (prev) => ({
+                                        ...prev,
+                                        [index]:
+                                          option.key,
+                                      })
+                                    )
+                                  }
+                                />
 
-                                  <span>
-                                    {getOptionText(
-                                      option
-                                    )}
-                                  </span>
-                                </button>
-                              );
-                            }
+                                <span>
+                                  {option.key}.{' '}
+                                  {option.text}
+                                </span>
+                              </label>
+                            )
                           )}
                         </div>
-
-                        <div className="pm-test-buttons">
-
-                          {testIndex >
-                            0 && (
-                            <button
-                              className="pm-btn pm-btn-light"
-                              onClick={() =>
-                                setTestIndex(
-                                  (
-                                    prev
-                                  ) =>
-                                    prev -
-                                    1
-                                )
-                              }
-                            >
-                              ← Previous
-                            </button>
-                          )}
-
-                          {testIndex <
-                          activeTest
-                            .questions
-                            .length -
-                            1 ? (
-                            <button
-                              className="pm-btn pm-btn-primary"
-                              onClick={() =>
-                                setTestIndex(
-                                  (
-                                    prev
-                                  ) =>
-                                    prev +
-                                    1
-                                )
-                              }
-                            >
-                              Next →
-                            </button>
-                          ) : (
-                            <button
-                              className="pm-btn pm-btn-primary"
-                              onClick={
-                                calculateResult
-                              }
-                            >
-                              Submit Test
-                            </button>
-                          )}
-
-                        </div>
-                      </>
+                      </div>
                     );
-                  })()}
-                </div>
-              )}
-
-            {/* TEST RESULT */}
-
-            {player.type ===
-              'test-result' &&
-              testResult && (
-                <div className="pm-test-result">
-
-                  <div className="pm-result-icon">
-                    🎉
-                  </div>
-
-                  <h2>
-                    Test Completed
-                  </h2>
-
-                  <div className="pm-result-grid">
-                    <div>
-                      <strong>
-                        {
-                          testResult.total
-                        }
-                      </strong>
-                      <span>
-                        Total
-                      </span>
-                    </div>
-
-                    <div>
-                      <strong>
-                        {
-                          testResult.attempted
-                        }
-                      </strong>
-                      <span>
-                        Attempted
-                      </span>
-                    </div>
-
-                    <div>
-                      <strong>
-                        {
-                          testResult.correct
-                        }
-                      </strong>
-                      <span>
-                        Correct
-                      </span>
-                    </div>
-                  </div>
-
-                  <button
-                    className="pm-btn pm-btn-primary pm-full-btn"
-                    onClick={
-                      closePlayer
-                    }
-                  >
-                    Done
-                  </button>
-
-                </div>
-              )}
-
-            {/* ERROR */}
-
-            {player.type ===
-              'error' && (
-              <div className="pm-player-center">
-                <div className="pm-error-icon">
-                  ⚠️
-                </div>
-
-                <h2>
-                  Something went wrong
-                </h2>
-
-                <p>
-                  {player.error}
-                </p>
-
-                <button
-                  className="pm-btn pm-btn-primary"
-                  onClick={
-                    closePlayer
                   }
-                >
-                  Close
-                </button>
+                )}
               </div>
-            )}
 
-            {/* UNSUPPORTED */}
-
-            {player.type ===
-              'unsupported' && (
-              <div className="pm-player-center pm-unsupported">
-
-                <div className="pm-error-icon">
-                  📄
-                </div>
-
-                <h2>
-                  Content viewer
-                </h2>
-
-                <p>
-                  Is content ka direct
-                  viewer abhi available
-                  nahi hai.
-                </p>
-
-                <details>
-                  <summary>
-                    Content details
-                  </summary>
-
-                  <pre>
-                    {JSON.stringify(
-                      player.item,
-                      null,
-                      2
-                    )}
-                  </pre>
-                </details>
-
-                <button
-                  className="pm-btn pm-btn-primary"
-                  onClick={
-                    closePlayer
-                  }
-                >
-                  Close
-                </button>
-
-              </div>
-            )}
-
-          </div>
+              <button
+                className="pm-primary pm-submit-test"
+                onClick={submitLocalTest}
+              >
+                Submit Test
+              </button>
+            </>
+          )}
         </div>
-      )}
+      </div>
+    );
+  }
 
+  return (
+    <main className="pm-app">
       <style jsx global>{`
-
         * {
           box-sizing: border-box;
         }
@@ -2334,19 +1173,16 @@ export default function PrepMasterApp() {
         body {
           margin: 0;
           padding: 0;
-          background: #ffffff;
-          color: #111827;
+          background: #f7f9fc;
           font-family:
             Inter,
+            ui-sans-serif,
             system-ui,
             -apple-system,
             BlinkMacSystemFont,
             "Segoe UI",
             sans-serif;
-        }
-
-        body {
-          min-height: 100vh;
+          color: #172033;
         }
 
         button,
@@ -2360,177 +1196,196 @@ export default function PrepMasterApp() {
 
         .pm-app {
           min-height: 100vh;
-          background: #ffffff;
+          background: #f7f9fc;
+          padding-bottom: 84px;
         }
 
         .pm-header {
           position: sticky;
           top: 0;
-          z-index: 50;
-          height: 68px;
+          z-index: 100;
+          height: 64px;
+          background: rgba(255,255,255,.96);
+          backdrop-filter: blur(12px);
+          border-bottom: 1px solid #e9edf3;
           display: flex;
           align-items: center;
           justify-content: space-between;
           padding: 0 18px;
-          background: rgba(
-            255,
-            255,
-            255,
-            0.96
-          );
-          border-bottom: 1px solid
-            #edf1f6;
-          backdrop-filter: blur(12px);
         }
 
         .pm-brand {
           display: flex;
           align-items: center;
           gap: 10px;
-          border: 0;
-          background: transparent;
-          padding: 0;
-          color: #111827;
+          min-width: 0;
         }
 
-        .pm-logo {
+        .pm-brand img {
+          width: 38px;
+          height: 38px;
+          object-fit: contain;
+          border-radius: 10px;
+        }
+
+        .pm-brand strong {
+          font-size: 19px;
+          white-space: nowrap;
+        }
+
+        .pm-menu-button {
           width: 40px;
           height: 40px;
-          object-fit: contain;
-          border-radius: 12px;
-        }
-
-        .pm-brand-name {
-          font-size: 19px;
-          font-weight: 800;
-        }
-
-        .pm-menu-btn {
-          width: 42px;
-          height: 42px;
           border: 0;
-          border-radius: 12px;
           background: #f3f6fa;
-          color: #111827;
-          font-size: 25px;
-          line-height: 1;
+          border-radius: 12px;
+          font-size: 21px;
+        }
+
+        .pm-menu {
+          position: fixed;
+          top: 70px;
+          right: 14px;
+          z-index: 500;
+          width: 245px;
+          background: white;
+          border: 1px solid #e7ebf1;
+          border-radius: 18px;
+          padding: 8px;
+          box-shadow:
+            0 18px 50px rgba(30,45,70,.16);
+        }
+
+        .pm-menu button {
+          width: 100%;
+          padding: 13px 12px;
+          border: 0;
+          background: transparent;
+          text-align: left;
+          border-radius: 12px;
+          font-size: 15px;
+        }
+
+        .pm-menu button:hover {
+          background: #f4f7fb;
         }
 
         .pm-main {
-          max-width: 1180px;
-          margin: 0 auto;
-          padding: 20px 16px 110px;
+          width: min(1180px, 100%);
+          margin: auto;
+          padding: 20px 16px 30px;
         }
 
-        .pm-search {
-          width: 100%;
-          height: 48px;
-          border: 1px solid
-            #e5eaf1;
+        .pm-hero {
+          background: white;
+          border: 1px solid #e8edf3;
+          border-radius: 24px;
+          padding: 26px;
+          margin-bottom: 16px;
+        }
+
+        .pm-small {
+          font-size: 12px;
+          color: #7b8799;
+          font-weight: 700;
+          letter-spacing: .08em;
+        }
+
+        .pm-hero h1 {
+          margin: 7px 0 4px;
+          font-size: clamp(28px, 6vw, 42px);
+        }
+
+        .pm-hero p,
+        .pm-page-title p {
+          margin: 0;
+          color: #758196;
+        }
+
+        .pm-search-wrap {
+          height: 50px;
+          background: white;
+          border: 1px solid #e5eaf0;
           border-radius: 15px;
-          padding: 0 16px;
-          outline: none;
-          background: #f8fafc;
-          margin-bottom: 18px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 0 15px;
+          margin-bottom: 24px;
         }
 
-        .pm-search:focus {
-          border-color: #2563eb;
-          background: #ffffff;
+        .pm-search-wrap input {
+          width: 100%;
+          border: 0;
+          outline: 0;
+          background: transparent;
         }
 
         .pm-section-head {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          gap: 12px;
-          margin: 18px 0 14px;
+          margin-bottom: 14px;
         }
 
-        .pm-section-title {
+        .pm-section-head h2 {
           margin: 0;
-          font-size: 22px;
-          font-weight: 800;
+          font-size: 21px;
         }
 
-        .pm-subtitle {
-          margin: 24px 0 12px;
-          font-size: 18px;
-          font-weight: 800;
-        }
-
-        .pm-breadcrumb {
-          margin-top: 5px;
-          color: #64748b;
-          font-size: 13px;
-        }
-
-        .pm-back {
+        .pm-section-head button {
           border: 0;
-          background: #eff6ff;
-          color: #2563eb;
-          padding: 9px 13px;
+          background: white;
+          border: 1px solid #e5eaf0;
           border-radius: 10px;
-          font-weight: 700;
+          width: 38px;
+          height: 38px;
         }
 
         .pm-grid {
           display: grid;
           grid-template-columns:
-            repeat(
-              auto-fill,
-              minmax(270px, 1fr)
-            );
+            repeat(auto-fill, minmax(250px, 1fr));
           gap: 16px;
         }
 
         .pm-card {
           overflow: hidden;
-          border: 1px solid
-            #e8edf3;
+          background: white;
+          border: 1px solid #e6ebf1;
           border-radius: 18px;
-          background: #ffffff;
           box-shadow:
-            0 5px 18px
-              rgba(
-                15,
-                23,
-                42,
-                0.05
-              );
+            0 5px 20px rgba(35,55,85,.05);
         }
 
-        .pm-card-image {
+        .pm-card-image,
+        .pm-card-placeholder {
           width: 100%;
-          height: 155px;
-          display: block;
+          aspect-ratio: 16 / 9;
           object-fit: cover;
-          background: #eef2f7;
+          display: block;
         }
 
-        .pm-image-placeholder {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 48px;
+        .pm-card-placeholder {
+          background: #edf4ff;
+          display: grid;
+          place-items: center;
+          font-size: 42px;
         }
 
         .pm-card-body {
-          padding: 14px;
+          padding: 15px;
         }
 
-        .pm-card-title {
-          margin: 0;
-          font-size: 16px;
-          line-height: 1.4;
-          font-weight: 800;
+        .pm-card-body h3 {
+          margin: 0 0 7px;
+          font-size: 17px;
         }
 
-        .pm-card-desc {
-          margin: 7px 0 0;
-          color: #64748b;
+        .pm-card-body p {
+          color: #788398;
           font-size: 13px;
-          line-height: 1.45;
+          margin: 0 0 10px;
           display: -webkit-box;
           -webkit-line-clamp: 2;
           -webkit-box-orient: vertical;
@@ -2538,312 +1393,227 @@ export default function PrepMasterApp() {
         }
 
         .pm-price {
-          margin-top: 10px;
-          font-size: 16px;
           font-weight: 800;
-          color: #2563eb;
+          margin-bottom: 13px;
         }
 
-        .pm-actions {
+        .pm-card-actions {
           display: grid;
           grid-template-columns: 1fr 1fr;
-          gap: 8px;
-          margin-top: 13px;
+          gap: 9px;
         }
 
-        .pm-btn {
+        .pm-primary,
+        .pm-secondary {
           min-height: 42px;
-          border: 0;
           border-radius: 11px;
-          padding: 0 13px;
-          font-weight: 750;
-        }
-
-        .pm-btn-primary {
-          color: #ffffff;
-          background: #2563eb;
-        }
-
-        .pm-btn-light {
-          color: #1e3a8a;
-          background: #eff6ff;
-        }
-
-        .pm-btn:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-
-        .pm-full-btn {
-          width: 100%;
-          margin-top: 12px;
-        }
-
-        .pm-loading-box,
-        .pm-empty-box,
-        .pm-error-box {
-          padding: 25px 16px;
-          border-radius: 15px;
-          background: #f8fafc;
-          text-align: center;
-          color: #64748b;
-        }
-
-        .pm-error-box {
-          color: #b91c1c;
-          background: #fef2f2;
-        }
-
-        .pm-retry {
-          margin-left: 10px;
-          border: 0;
-          border-radius: 9px;
-          padding: 8px 12px;
-          background: #2563eb;
-          color: #ffffff;
+          padding: 0 14px;
           font-weight: 700;
         }
 
-        .pm-content-grid {
+        .pm-primary {
+          color: white;
+          border: 0;
+          background: #1769ff;
+        }
+
+        .pm-secondary {
+          color: #1769ff;
+          background: white;
+          border: 1px solid #bcd2ff;
+        }
+
+        .pm-page-title {
+          margin: 5px 0 22px;
+        }
+
+        .pm-page-title h1 {
+          margin: 5px 0;
+          font-size: 27px;
+        }
+
+        .pm-back {
+          border: 0;
+          background: transparent;
+          color: #1769ff;
+          padding: 0;
+          font-weight: 700;
+        }
+
+        .pm-state,
+        .pm-error,
+        .pm-empty,
+        .pm-coming {
+          background: white;
+          border: 1px solid #e5eaf0;
+          border-radius: 18px;
+          padding: 28px;
+          text-align: center;
+        }
+
+        .pm-error {
+          color: #b42318;
+          background: #fff7f6;
+          border-color: #ffd7d2;
+        }
+
+        .pm-empty > div,
+        .pm-coming-icon {
+          font-size: 42px;
+        }
+
+        .pm-empty h3,
+        .pm-coming h2 {
+          margin: 10px 0 6px;
+        }
+
+        .pm-empty p,
+        .pm-coming p {
+          margin: 0 0 18px;
+          color: #788398;
+        }
+
+        .pm-small-button {
+          padding: 0 18px;
+        }
+
+        .pm-content-list {
           display: grid;
           gap: 10px;
         }
 
-        .pm-content-card {
-          width: 100%;
+        .pm-content-item {
           min-height: 70px;
           display: flex;
           align-items: center;
           gap: 13px;
-          border: 1px solid
-            #e8edf3;
+          background: white;
+          border: 1px solid #e5eaf0;
           border-radius: 15px;
-          padding: 11px 13px;
-          background: #ffffff;
-          text-align: left;
-          box-shadow:
-            0 3px 12px
-              rgba(
-                15,
-                23,
-                42,
-                0.035
-              );
+          padding: 11px 14px;
+          cursor: pointer;
+          transition: .15s ease;
         }
 
-        .pm-content-card:hover {
-          border-color: #bfdbfe;
-          background: #f8fbff;
+        .pm-content-item:hover {
+          transform: translateY(-1px);
+          box-shadow:
+            0 7px 20px rgba(30,50,80,.07);
         }
 
         .pm-content-icon {
           width: 44px;
           height: 44px;
-          flex: 0 0 44px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
           border-radius: 12px;
-          background: #eff6ff;
+          background: #edf4ff;
+          display: grid;
+          place-items: center;
           font-size: 22px;
+          flex: 0 0 auto;
         }
 
         .pm-content-info {
           min-width: 0;
           flex: 1;
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
         }
 
-        .pm-content-info strong {
-          color: #111827;
-          font-size: 14px;
-          line-height: 1.35;
+        .pm-content-title {
+          font-weight: 700;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
 
-        .pm-content-info span {
-          color: #64748b;
+        .pm-content-meta {
+          margin-top: 4px;
+          color: #7b8799;
           font-size: 12px;
         }
 
-        .pm-arrow {
-          color: #94a3b8;
+        .pm-content-arrow {
+          color: #8b96a8;
           font-size: 20px;
         }
 
-        .pm-bottom-nav {
+        .pm-bottom {
           position: fixed;
+          bottom: 0;
           left: 0;
           right: 0;
-          bottom: 0;
-          z-index: 40;
-          height: 70px;
-          display: grid;
-          grid-template-columns:
-            repeat(4, 1fr);
-          background: rgba(
-            255,
-            255,
-            255,
-            0.97
-          );
-          border-top: 1px solid
-            #e8edf3;
-          backdrop-filter: blur(12px);
-          padding-bottom: env(
-            safe-area-inset-bottom
-          );
-        }
-
-        .pm-bottom-nav button {
-          border: 0;
-          background: transparent;
-          color: #64748b;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-direction: column;
-          gap: 3px;
-          font-size: 11px;
-          font-weight: 650;
-        }
-
-        .pm-bottom-nav button span {
-          font-size: 20px;
-        }
-
-        .pm-bottom-nav
-          .pm-nav-active {
-          color: #2563eb;
-        }
-
-        .pm-bottom-nav
-          .pm-nav-main {
-          color: #2563eb;
-          font-weight: 800;
-        }
-
-        .pm-menu-overlay {
-          position: fixed;
-          inset: 0;
-          z-index: 100;
-          background: rgba(
-            15,
-            23,
-            42,
-            0.18
-          );
-        }
-
-        .pm-menu {
-          position: absolute;
-          top: 76px;
-          right: 14px;
-          width: min(
-            280px,
-            calc(100vw - 28px)
-          );
-          padding: 10px;
-          border: 1px solid
-            #e5eaf1;
-          border-radius: 17px;
-          background: #ffffff;
-          box-shadow:
-            0 18px 50px
-              rgba(
-                15,
-                23,
-                42,
-                0.16
-              );
-        }
-
-        .pm-menu-title {
-          padding: 11px 12px;
-          font-weight: 800;
-          border-bottom: 1px solid
-            #eef2f7;
-          margin-bottom: 5px;
-        }
-
-        .pm-menu-item {
-          width: 100%;
-          min-height: 46px;
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          border: 0;
-          border-radius: 11px;
-          background: transparent;
-          padding: 0 12px;
-          color: #111827;
-          text-align: left;
-          font-weight: 650;
-        }
-
-        .pm-menu-item:hover {
-          background: #f8fafc;
-        }
-
-        .pm-modal-overlay,
-        .pm-player-overlay {
-          position: fixed;
-          inset: 0;
           z-index: 200;
-          background: rgba(
-            15,
-            23,
-            42,
-            0.6
-          );
-          display: flex;
-          align-items: center;
-          justify-content: center;
+          height: 70px;
+          background: rgba(255,255,255,.97);
+          backdrop-filter: blur(12px);
+          border-top: 1px solid #e5eaf0;
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          padding: 5px 8px;
+        }
+
+        .pm-bottom button {
+          border: 0;
+          background: transparent;
+          color: #7b8799;
+          font-size: 11px;
+        }
+
+        .pm-bottom button.active {
+          color: #1769ff;
+          font-weight: 800;
+        }
+
+        .pm-bottom span {
+          display: block;
+          font-size: 21px;
+          margin-bottom: 2px;
+        }
+
+        .pm-popup-backdrop,
+        .pm-player-overlay,
+        .pm-test-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 1000;
+          background: rgba(9,18,32,.55);
+          display: grid;
+          place-items: center;
           padding: 16px;
         }
 
-        .pm-enroll-modal {
-          width: min(
-            410px,
-            100%
-          );
+        .pm-popup {
+          width: min(420px, 100%);
+          background: white;
           border-radius: 22px;
           padding: 28px;
-          background: #ffffff;
           text-align: center;
-          box-shadow:
-            0 25px 70px
-              rgba(
-                15,
-                23,
-                42,
-                0.25
-              );
         }
 
-        .pm-success-icon {
-          font-size: 52px;
+        .pm-popup-logo {
+          width: 65px;
+          height: 65px;
+          object-fit: contain;
+          margin-bottom: 8px;
         }
 
-        .pm-enroll-modal h2 {
-          margin: 12px 0 8px;
+        .pm-popup h2 {
+          margin: 5px 0 8px;
         }
 
-        .pm-enroll-modal p {
-          color: #64748b;
-          line-height: 1.5;
+        .pm-popup p {
+          color: #778398;
+        }
+
+        .pm-popup button {
+          width: 100%;
+          margin-top: 8px;
         }
 
         .pm-player {
-          width: min(
-            1100px,
-            100%
-          );
-          max-height: 94vh;
-          overflow: hidden;
+          width: min(1100px, 100%);
+          height: min(88vh, 760px);
+          background: #fff;
           border-radius: 18px;
-          background: #ffffff;
+          overflow: hidden;
           display: flex;
           flex-direction: column;
         }
@@ -2852,421 +1622,444 @@ export default function PrepMasterApp() {
           min-height: 58px;
           display: flex;
           align-items: center;
-          justify-content: space-between;
-          gap: 10px;
-          padding: 0 15px;
-          border-bottom: 1px solid
-            #e8edf3;
+          gap: 12px;
+          padding: 0 14px;
+          border-bottom: 1px solid #e5eaf0;
         }
 
-        .pm-player-title {
-          font-weight: 800;
+        .pm-player-header strong {
+          flex: 1;
+          min-width: 0;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
         }
 
-        .pm-close-btn {
+        .pm-player-close {
           width: 38px;
           height: 38px;
-          flex: 0 0 38px;
           border: 0;
           border-radius: 10px;
-          background: #f1f5f9;
-          font-size: 16px;
-        }
-
-        .pm-video-wrap {
-          background: #000000;
-          display: flex;
-          align-items: center;
-          justify-content: center;
+          background: #f1f4f8;
         }
 
         .pm-video {
           width: 100%;
-          max-height: 75vh;
-          display: block;
-          background: #000000;
-        }
-
-        .pm-pdf-wrap {
-          height: 78vh;
-          background: #f1f5f9;
-        }
-
-        .pm-pdf {
-          width: 100%;
           height: 100%;
+          background: #000;
+          object-fit: contain;
+        }
+
+        .pm-pdf-frame {
+          width: 100%;
+          flex: 1;
           border: 0;
+          background: #f2f4f7;
         }
 
-        .pm-player-center {
-          min-height: 300px;
-          padding: 35px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-direction: column;
-          text-align: center;
-          gap: 10px;
+        .pm-test-card {
+          width: min(850px, 100%);
+          max-height: 92vh;
+          overflow: auto;
+          background: white;
+          border-radius: 20px;
+          padding: 20px;
         }
 
-        .pm-player-center p {
-          margin: 0;
-          color: #64748b;
+        .pm-test-top {
+          position: sticky;
+          top: -20px;
+          background: white;
+          padding: 5px 0 15px;
+          border-bottom: 1px solid #e8edf3;
+          z-index: 2;
         }
 
-        .pm-spinner {
-          width: 42px;
-          height: 42px;
-          border: 4px solid
-            #dbeafe;
-          border-top-color: #2563eb;
-          border-radius: 50%;
-          animation:
-            pm-spin 0.8s linear infinite;
-        }
-
-        @keyframes pm-spin {
-          to {
-            transform: rotate(360deg);
-          }
-        }
-
-        .pm-error-icon,
-        .pm-result-icon {
-          font-size: 45px;
-        }
-
-        .pm-test-box {
-          overflow-y: auto;
-          padding: 25px;
-        }
-
-        .pm-test-box h2 {
-          margin-top: 0;
-        }
-
-        .pm-test-instructions {
-          padding: 15px;
-          margin-bottom: 16px;
-          border-radius: 12px;
-          background: #f8fafc;
-          line-height: 1.6;
-        }
-
-        .pm-test-error {
-          margin: 10px 0;
-          padding: 10px;
-          border-radius: 9px;
-          color: #b91c1c;
-          background: #fef2f2;
-        }
-
-        .pm-test-progress {
-          margin-bottom: 14px;
-          color: #2563eb;
-          font-weight: 750;
+        .pm-test-top h2 {
+          margin: 10px 0 0;
         }
 
         .pm-question {
-          line-height: 1.5;
+          padding: 18px 0;
+          border-bottom: 1px solid #edf0f4;
+        }
+
+        .pm-question h3 {
+          margin: 0 0 12px;
+          font-size: 16px;
         }
 
         .pm-options {
           display: grid;
-          gap: 10px;
-          margin: 20px 0;
+          gap: 8px;
         }
 
         .pm-option {
           display: flex;
           align-items: center;
-          gap: 12px;
+          gap: 9px;
+          padding: 11px;
+          border: 1px solid #e3e8ef;
+          border-radius: 11px;
+        }
+
+        .pm-option.selected {
+          border-color: #1769ff;
+          background: #f1f6ff;
+        }
+
+        .pm-submit-test {
           width: 100%;
-          min-height: 52px;
-          border: 1px solid
-            #e2e8f0;
-          border-radius: 12px;
-          padding: 8px 12px;
-          background: #ffffff;
-          text-align: left;
-        }
-
-        .pm-option-selected {
-          border-color: #2563eb;
-          background: #eff6ff;
-        }
-
-        .pm-option-letter {
-          width: 32px;
-          height: 32px;
-          flex: 0 0 32px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 9px;
-          background: #f1f5f9;
-          font-weight: 800;
-        }
-
-        .pm-test-buttons {
-          display: flex;
-          justify-content: space-between;
-          gap: 10px;
-          margin-top: 20px;
-        }
-
-        .pm-result-grid {
-          display: grid;
-          grid-template-columns:
-            repeat(3, 1fr);
-          gap: 10px;
-          margin: 20px 0;
-        }
-
-        .pm-result-grid div {
-          padding: 18px 8px;
-          border-radius: 13px;
-          background: #f8fafc;
-          text-align: center;
-        }
-
-        .pm-result-grid strong,
-        .pm-result-grid span {
-          display: block;
-        }
-
-        .pm-result-grid strong {
-          font-size: 25px;
-          color: #2563eb;
-        }
-
-        .pm-result-grid span {
-          margin-top: 3px;
-          color: #64748b;
-          font-size: 12px;
+          margin-top: 18px;
         }
 
         .pm-test-result {
-          padding: 35px;
           text-align: center;
-          overflow-y: auto;
+          padding: 50px 15px;
         }
 
-        .pm-unsupported {
-          overflow-y: auto;
+        .pm-result-icon {
+          font-size: 50px;
         }
 
-        .pm-unsupported details {
-          width: 100%;
-          max-width: 700px;
-          text-align: left;
+        .pm-score {
+          font-size: 42px;
+          font-weight: 900;
+          margin: 15px 0 25px;
         }
 
-        .pm-unsupported pre {
-          max-height: 250px;
-          overflow: auto;
-          padding: 12px;
-          border-radius: 10px;
-          background: #f8fafc;
-          font-size: 11px;
-          white-space: pre-wrap;
-          word-break: break-word;
+        .pm-retry {
+          margin-top: 15px;
         }
 
         @media (max-width: 600px) {
-
-          .pm-header {
-            height: 62px;
-            padding: 0 13px;
-          }
-
-          .pm-logo {
-            width: 36px;
-            height: 36px;
-          }
-
-          .pm-brand-name {
-            font-size: 17px;
-          }
-
           .pm-main {
-            padding: 15px 12px 100px;
+            padding: 15px 12px 25px;
+          }
+
+          .pm-hero {
+            padding: 21px;
           }
 
           .pm-grid {
             grid-template-columns: 1fr;
           }
 
-          .pm-card-image {
-            height: 170px;
-          }
-
-          .pm-player-overlay {
-            padding: 0;
-          }
-
           .pm-player {
             width: 100%;
-            height: 100%;
-            max-height: 100%;
-            border-radius: 0;
+            height: 94vh;
+            border-radius: 14px;
           }
 
-          .pm-video {
-            max-height: 65vh;
+          .pm-popup-backdrop,
+          .pm-player-overlay,
+          .pm-test-overlay {
+            padding: 8px;
           }
 
-          .pm-pdf-wrap {
-            height: calc(
-              100vh - 58px
-            );
-          }
-
-          .pm-test-box {
-            padding: 18px;
-          }
-
-          .pm-result-grid {
-            grid-template-columns:
-              repeat(3, 1fr);
+          .pm-test-card {
+            max-height: 96vh;
           }
         }
-
       `}</style>
-    </div>
-  );
-}
 
-/* =========================
-   COMING SOON
-========================= */
+      <header className="pm-header">
+        <div className="pm-brand">
+          <img
+            src="/prep-master-logo.png"
+            alt="Prep Master"
+            onError={(e) => {
+              e.currentTarget.src =
+                '/prep-master-icon.png';
+            }}
+          />
 
-function ComingSoon({
-  icon,
-  title,
-}) {
-  return (
-    <div className="pm-coming-soon">
-      <div className="pm-coming-icon">
-        {icon}
+          <strong>Prep Master</strong>
+        </div>
+
+        <button
+          className="pm-menu-button"
+          onClick={() =>
+            setMenuOpen((prev) => !prev)
+          }
+        >
+          ⋮
+        </button>
+      </header>
+
+      {menuOpen && (
+        <div className="pm-menu">
+          <button
+            onClick={() => {
+              setMenuOpen(false);
+              setPage('home');
+            }}
+          >
+            📚 Batches
+          </button>
+
+          <button
+            onClick={() => {
+              setMenuOpen(false);
+              setPage('mybatches');
+            }}
+          >
+            📖 My Batches
+          </button>
+
+          <button
+            onClick={() => {
+              const url =
+                process.env
+                  .NEXT_PUBLIC_TELEGRAM_URL;
+
+              if (url) {
+                window.open(
+                  url,
+                  '_blank',
+                  'noopener,noreferrer'
+                );
+              }
+            }}
+          >
+            ✈️ Join Telegram
+          </button>
+
+          <button
+            onClick={() => {
+              const url =
+                process.env
+                  .NEXT_PUBLIC_OWNER_CONTACT;
+
+              if (url) {
+                window.open(
+                  url,
+                  '_blank',
+                  'noopener,noreferrer'
+                );
+              }
+            }}
+          >
+            👤 Contact Owner
+          </button>
+
+          <button
+            onClick={() => {
+              setMenuOpen(false);
+              alert(
+                'Admin Panel will be available soon.'
+              );
+            }}
+          >
+            ⚙️ Admin Panel
+          </button>
+        </div>
+      )}
+
+      <div className="pm-main">
+        {page === 'home' && <HomePage />}
+
+        {page === 'mybatches' && (
+          <MyBatchesPage />
+        )}
+
+        {page === 'batch' && <BatchPage />}
+
+        {page === 'community' && (
+          <ComingSoon
+            title="Community"
+            icon="💬"
+          />
+        )}
+
+        {page === 'ai' && (
+          <ComingSoon
+            title="AI Doubts"
+            icon="🤖"
+          />
+        )}
       </div>
 
-      <h1>{title}</h1>
+      <nav className="pm-bottom">
+        <button
+          className={
+            page === 'community'
+              ? 'active'
+              : ''
+          }
+          onClick={() =>
+            setPage('community')
+          }
+        >
+          <span>💬</span>
+          Community
+        </button>
 
-      <p>
-        This feature is coming soon.
-      </p>
+        <button
+          className={
+            page === 'mybatches'
+              ? 'active'
+              : ''
+          }
+          onClick={() =>
+            setPage('mybatches')
+          }
+        >
+          <span>📖</span>
+          My Batches
+        </button>
 
-      <style jsx>{`
-        .pm-coming-soon {
-          min-height: 60vh;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-direction: column;
-          text-align: center;
-        }
+        <button
+          className={
+            page === 'home' ||
+            page === 'batch'
+              ? 'active'
+              : ''
+          }
+          onClick={() => setPage('home')}
+        >
+          <span>📚</span>
+          Batches
+        </button>
 
-        .pm-coming-icon {
-          font-size: 55px;
-          margin-bottom: 10px;
-        }
+        <button
+          className={
+            page === 'ai' ? 'active' : ''
+          }
+          onClick={() => setPage('ai')}
+        >
+          <span>🤖</span>
+          AI Doubts
+        </button>
+      </nav>
 
-        .pm-coming-soon h1 {
-          margin: 0;
-          font-size: 25px;
-        }
+      {enrollPopup && (
+        <div className="pm-popup-backdrop">
+          <div className="pm-popup">
+            <img
+              className="pm-popup-logo"
+              src="/prep-master-icon.png"
+              alt="Prep Master"
+            />
 
-        .pm-coming-soon p {
-          color: #64748b;
-        }
-      `}</style>
-    </div>
-  );
-}
+            <h2>
+              Congratulations 🎉
+            </h2>
 
-/* =========================
-   TEST INSTRUCTIONS
-========================= */
+            <p>
+              You have successfully enrolled
+              in <strong>
+                {getTitle(enrollPopup)}
+              </strong>.
+            </p>
 
-function renderInstructions(data) {
-  if (
-    data === null ||
-    data === undefined
-  ) {
-    return (
-      <p>
-        No instructions available.
-      </p>
-    );
-  }
+            <button
+              className="pm-primary"
+              onClick={() => {
+                setEnrollPopup(null);
+                openBatch(enrollPopup);
+              }}
+            >
+              Start Studying
+            </button>
 
-  if (
-    typeof data === 'string' ||
-    typeof data === 'number'
-  ) {
-    return (
-      <p>
-        {String(data)}
-      </p>
-    );
-  }
-
-  if (Array.isArray(data)) {
-    return (
-      <ul>
-        {data.map(
-          (item, index) => (
-            <li key={index}>
-              {typeof item ===
-              'object'
-                ? JSON.stringify(
-                    item
-                  )
-                : String(item)}
-            </li>
-          )
-        )}
-      </ul>
-    );
-  }
-
-  const possibleText =
-    data?.instructions ??
-    data?.instruction ??
-    data?.description ??
-    data?.text ??
-    data?.data?.instructions ??
-    data?.data?.description;
-
-  if (possibleText) {
-    return (
-      <p>
-        {String(
-          possibleText
-        )}
-      </p>
-    );
-  }
-
-  return (
-    <pre
-      style={{
-        whiteSpace:
-          'pre-wrap',
-        wordBreak:
-          'break-word',
-        margin: 0,
-      }}
-    >
-      {JSON.stringify(
-        data,
-        null,
-        2
+            <button
+              className="pm-secondary"
+              onClick={() =>
+                setEnrollPopup(null)
+              }
+            >
+              Close
+            </button>
+          </div>
+        </div>
       )}
-    </pre>
+
+      {player && (
+        <div className="pm-player-overlay">
+          <div className="pm-player">
+            <div className="pm-player-header">
+              <button
+                className="pm-player-close"
+                onClick={closePlayer}
+              >
+                ←
+              </button>
+
+              <strong>
+                {player.title}
+              </strong>
+
+              {player.type === 'pdf' && (
+                <a
+                  href={player.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="pm-secondary"
+                  style={{
+                    display: 'grid',
+                    placeItems: 'center',
+                    textDecoration: 'none',
+                    minHeight: 36,
+                  }}
+                >
+                  Open
+                </a>
+              )}
+            </div>
+
+            {player.type === 'video' && (
+              <video
+                className="pm-video"
+                src={player.url}
+                controls
+                playsInline
+                autoPlay
+              />
+            )}
+
+            {player.type === 'pdf' && (
+              <iframe
+                className="pm-pdf-frame"
+                src={player.url}
+                title={player.title}
+              />
+            )}
+          </div>
+        </div>
+      )}
+
+      {playerLoading && (
+        <div className="pm-popup-backdrop">
+          <div className="pm-popup">
+            <h2>Loading...</h2>
+            <p>
+              Please wait while the content
+              loads.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {playerError && !player && (
+        <div className="pm-popup-backdrop">
+          <div className="pm-popup">
+            <h2>Unable to play</h2>
+            <p>{playerError}</p>
+
+            <button
+              className="pm-primary"
+              onClick={() =>
+                setPlayerError('')
+              }
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {activeTest && <TestScreen />}
+    </main>
   );
 }

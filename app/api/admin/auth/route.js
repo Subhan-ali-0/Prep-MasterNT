@@ -3,7 +3,7 @@ import {
   makeSession,
   cookieOpts,
   COOKIE,
-} from ../../../../lib/admin
+} from '../../../../lib/admin';
 
 export async function POST(req) {
   const { password = '' } = await req.json();

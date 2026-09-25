@@ -40,20 +40,7 @@ const folder = (x) =>
     .includes('folder') ||
   x?.is_folder === true;
 
-export default function PrepMasterApp() {
-  const [s, setS] = useState(defaults);
-  const [bs, setBs] = useState([]);
-  const [en, setEn] = useState([]);
-  const [page, setPage] = useState('home');
-  const [q, setQ] = useState('');
-  const [sel, setSel] = useState(null);
-  const [items, setItems] = useState([]);
-  const [stack, setStack] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState('');
-  const [menu, setMenu] = useState(false);
-  const [enroll, setEnroll] = useState(false);
-  const [player, setPlayer] = useState(null);
+
 
   useEffect(() => {
     try {
@@ -75,7 +62,22 @@ export default function PrepMasterApp() {
   }, []);
 
   const filtered = useMemo(() => {
-    return bs.filter((b) =>
+   export default function PrepMasterApp() {
+  const [s, setS] = useState(defaults);
+  const [bs, setBs] = useState([]);
+  const [en, setEn] = useState([]);
+  const [page, setPage] = useState('home');
+
+  const [q, setQ] = useState('');
+  const [sel, setSel] = useState(null);
+
+  const [items, setItems] = useState([]);
+  const [stack, setStack] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+  const [menu, setMenu] = useState(false);
+  const [enroll, setEnroll] = useState(false);
+  const [player, setPlayer] = useState(null); return bs.filter((b) =>
       `${b.title} ${b.description}`
         .toLowerCase()
         .includes(q.toLowerCase())

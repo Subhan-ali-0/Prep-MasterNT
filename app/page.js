@@ -1,2 +1,2 @@
-import PrepMasterApp from '../components/PrepMasterApp';
+import PrepMasterApp from "../PrepMasterApp";
 export default function Home(){return <PrepMasterApp/>}

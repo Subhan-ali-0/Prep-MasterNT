@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+
+    import { NextResponse } from 'next/server';
 
 const SOURCE = 'https://nt.studybeepro.site/api/foy';
 
@@ -13,7 +14,7 @@ export async function GET(request) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Missing content_id or course_id',
+          error: 'content_id and course_id are required'
         },
         { status: 400 }
       );
@@ -26,46 +27,48 @@ export async function GET(request) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Playback configuration is missing.',
+          error: 'Playback environment variables are missing.'
         },
         { status: 500 }
       );
     }
 
-    const url =
-      `${SOURCE}?content_id=${encodeURIComponent(contentId)}` +
-      `&course_id=${encodeURIComponent(courseId)}` +
-      `&key=${encodeURIComponent(key)}` +
-      `&device_id=${encodeURIComponent(deviceId)}`;
+    const url = new URL(SOURCE);
 
-    const response = await fetch(url, {
+    url.searchParams.set('content_id', contentId);
+    url.searchParams.set('course_id', courseId);
+    url.searchParams.set('key', key);
+    url.searchParams.set('device_id', deviceId);
+
+    const response = await fetch(url.toString(), {
       cache: 'no-store',
       headers: {
-        Accept: 'application/json',
-      },
+        accept: 'application/json'
+      }
     });
 
     const text = await response.text();
+
+    let json;
+
+    try {
+      json = JSON.parse(text);
+    } catch {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Playback source did not return JSON'
+        },
+        { status: 502 }
+      );
+    }
 
     if (!response.ok) {
       return NextResponse.json(
         {
           success: false,
           error: `Playback source returned ${response.status}`,
-        },
-        { status: 502 }
-      );
-    }
-
-    let data;
-
-    try {
-      data = JSON.parse(text);
-    } catch {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Playback source returned non-JSON data.',
+          data: json
         },
         { status: 502 }
       );
@@ -73,15 +76,15 @@ export async function GET(request) {
 
     return NextResponse.json({
       success: true,
-      data,
+      data: json
     });
   } catch (error) {
     return NextResponse.json(
       {
         success: false,
-        error: error?.message || 'Unable to load playback.',
+        error: error?.message || 'Unable to load playback.'
       },
-      { status: 502 }
+      { status: 500 }
     );
   }
 }

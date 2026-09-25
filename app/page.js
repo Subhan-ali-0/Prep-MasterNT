@@ -1,2 +1,1 @@
-import PrepMasterApp from '../PrepMasterApp';
-export default function Home(){return <PrepMasterApp/>}
+fetch(`/api/content?content=${encodeURIComponent(sel.id)}&folder=${encodeURIComponent(folderId)}`)

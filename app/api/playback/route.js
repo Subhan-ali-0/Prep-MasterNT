@@ -39,33 +39,84 @@ export async function GET(req) {
       `&device_id=${encodeURIComponent(device)}`;
 
     const response = await fetch(url, {
+      method: 'GET',
       cache: 'no-store',
+      headers: {
+        Accept: 'application/json, text/plain, */*',
+        'User-Agent': 'Mozilla/5.0',
+      },
     });
 
     const text = await response.text();
 
-    if (!response.ok) {
-      throw new Error(`Playback source returned ${response.status}`);
+    let data;
+
+    try {
+      data = JSON.parse(text);
+    } catch {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Playback source returned invalid JSON.',
+          status: response.status,
+          preview: text.slice(0, 500),
+        },
+        { status: 502 }
+      );
     }
 
-    const data = JSON.parse(text);
+    if (!response.ok) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Playback source returned HTTP ${response.status}`,
+          sourceData: data,
+        },
+        { status: 502 }
+      );
+    }
+
+    const decrypted =
+      data?.data?.decryptedData ||
+      data?.decryptedData ||
+      data?.data?.data?.decryptedData ||
+      {};
 
     const playableUrl =
-      data?.data?.decryptedData?.file_url || null;
+      decrypted?.file_url ||
+      decrypted?.url ||
+      data?.data?.file_url ||
+      data?.data?.url ||
+      data?.file_url ||
+      data?.url ||
+      null;
+
+    if (!playableUrl) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Playback response received, but no playable URL was found.',
+          sourceData: data,
+        },
+        { status: 502 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
       url: playableUrl,
-      type: data?.data?.decryptedData?.file_type ?? null,
-      videoType: data?.data?.decryptedData?.video_type ?? null,
-      isDrm: data?.data?.decryptedData?.is_drm ?? null,
-      data,
+      type: decrypted?.file_type ?? null,
+      videoType: decrypted?.video_type ?? null,
+      isDrm: decrypted?.is_drm ?? null,
     });
+
   } catch (error) {
     return NextResponse.json(
       {
         success: false,
-        error: error.message || 'Unable to load playback.',
+        error:
+          error?.message ||
+          'Unable to load playback.',
       },
       { status: 502 }
     );

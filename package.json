@@ -9,8 +9,9 @@
   },
   "dependencies": {
     "next": "15.5.25",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "pdfjs-dist": "^5.4.149"
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "pdfjs-dist": "5.4.149",
+    "mongodb": "^6.20.0"
   }
 }

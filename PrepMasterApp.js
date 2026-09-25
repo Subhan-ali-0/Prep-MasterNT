@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import PdfPlayer from './PdfPlayer';
 
 function getId(item) {
   return String(
@@ -143,7 +144,8 @@ function isPdf(item) {
     Boolean(item?.pdf_url) ||
     Boolean(item?.data?.pdf_url) ||
     /\.pdf(\?|$)/i.test(url) ||
-    title.includes('notes')
+    title.includes('notes') ||
+    title.includes('note')
   );
 }
 
@@ -250,16 +252,18 @@ function getOptions(question) {
   }
 
   if (options && typeof options === 'object') {
-    return Object.entries(options).map(([key, value]) => ({
-      key,
-      text:
-        typeof value === 'string'
-          ? value
-          : value?.text ??
-            value?.value ??
-            value?.title ??
-            '',
-    }));
+    return Object.entries(options).map(
+      ([key, value]) => ({
+        key,
+        text:
+          typeof value === 'string'
+            ? value
+            : value?.text ??
+              value?.value ??
+              value?.title ??
+              '',
+      })
+    );
   }
 
   return [];
@@ -349,7 +353,8 @@ export default function PrepMasterApp() {
       );
     } catch (error) {
       setBatchError(
-        error?.message || 'Unable to load batches.'
+        error?.message ||
+          'Unable to load batches.'
       );
     } finally {
       setLoadingBatches(false);
@@ -360,7 +365,8 @@ export default function PrepMasterApp() {
     const id = getId(batch);
 
     return enrolled.some(
-      (item) => String(getId(item)) === String(id)
+      (item) =>
+        String(getId(item)) === String(id)
     );
   }
 
@@ -368,7 +374,10 @@ export default function PrepMasterApp() {
     if (!batch) return;
 
     if (!isEnrolled(batch)) {
-      setEnrolled((prev) => [...prev, batch]);
+      setEnrolled((prev) => [
+        ...prev,
+        batch,
+      ]);
     }
 
     setEnrollPopup(batch);
@@ -381,10 +390,14 @@ export default function PrepMasterApp() {
     setContentItems([]);
     setContentError('');
     setPage('batch');
+
     loadContent(getId(batch), '0');
   }
 
-  async function loadContent(courseId, folderId = '0') {
+  async function loadContent(
+    courseId,
+    folderId = '0'
+  ) {
     if (!courseId) return;
 
     setContentLoading(true);
@@ -394,7 +407,9 @@ export default function PrepMasterApp() {
       const response = await fetch(
         `/api/content?content=${encodeURIComponent(
           courseId
-        )}&folder=${encodeURIComponent(folderId)}`,
+        )}&folder=${encodeURIComponent(
+          folderId
+        )}`,
         {
           cache: 'no-store',
         }
@@ -404,7 +419,8 @@ export default function PrepMasterApp() {
 
       if (!response.ok || !json?.success) {
         throw new Error(
-          json?.error || 'Unable to load content.'
+          json?.error ||
+            'Unable to load content.'
         );
       }
 
@@ -415,6 +431,7 @@ export default function PrepMasterApp() {
       );
     } catch (error) {
       setContentItems([]);
+
       setContentError(
         error?.message ||
           'Unable to load course content.'
@@ -456,18 +473,23 @@ export default function PrepMasterApp() {
     }
 
     const nextStack = [...folderStack];
+
     nextStack.pop();
 
     setFolderStack(nextStack);
 
     const parentId =
       nextStack.length > 0
-        ? nextStack[nextStack.length - 1].id
+        ? nextStack[
+            nextStack.length - 1
+          ].id
         : '0';
 
     setCurrentFolder(
       nextStack.length > 0
-        ? nextStack[nextStack.length - 1]
+        ? nextStack[
+            nextStack.length - 1
+          ]
         : null
     );
 
@@ -537,11 +559,13 @@ export default function PrepMasterApp() {
     const url = getPdfUrl(item);
 
     if (!url) {
-      alert(
-        'Is note ka PDF source available nahi hai. Source API ne actual PDF URL provide nahi kiya.'
+      setPlayerError(
+        'Is note ka actual PDF URL source API ne provide nahi kiya.'
       );
       return;
     }
+
+    setPlayerError('');
 
     setPlayer({
       type: 'pdf',
@@ -563,6 +587,7 @@ export default function PrepMasterApp() {
     setTestResult(null);
     setTestQuestions([]);
     setTestAnswers({});
+
     setActiveTest({
       id: String(testId),
       title: getTitle(item),
@@ -582,15 +607,22 @@ export default function PrepMasterApp() {
       const json = await response.json();
 
       if (!response.ok || !json?.success) {
+        if (response.status === 401) {
+          throw new Error(
+            'Test access authorized nahi hai. Test API ne 401 Unauthorized return kiya.'
+          );
+        }
+
         throw new Error(
           json?.error ||
             `Test source returned HTTP ${response.status}`
         );
       }
 
-      setTestQuestions(
-        getTestQuestions(json?.data)
-      );
+      const questions =
+        getTestQuestions(json?.data);
+
+      setTestQuestions(questions);
     } catch (error) {
       setTestError(
         error?.message ||
@@ -620,15 +652,20 @@ export default function PrepMasterApp() {
       const json = await response.json();
 
       if (!response.ok || !json?.success) {
+        if (response.status === 401) {
+          throw new Error(
+            'Test access authorized nahi hai. Test API ne 401 Unauthorized return kiya.'
+          );
+        }
+
         throw new Error(
           json?.error ||
             `Test source returned HTTP ${response.status}`
         );
       }
 
-      const questions = getTestQuestions(
-        json?.data
-      );
+      const questions =
+        getTestQuestions(json?.data);
 
       setTestQuestions(questions);
       setTestAnswers({});
@@ -691,7 +728,9 @@ export default function PrepMasterApp() {
   }
 
   const filteredBatches = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = search
+      .trim()
+      .toLowerCase();
 
     if (!q) return batches;
 
@@ -714,10 +753,14 @@ export default function PrepMasterApp() {
   );
 
   function renderBatchCard(batch) {
-    const enrolledNow = isEnrolled(batch);
+    const enrolledNow =
+      isEnrolled(batch);
 
     return (
-      <div className="pm-card" key={getId(batch)}>
+      <div
+        className="pm-card"
+        key={getId(batch)}
+      >
         {getBatchImage(batch) ? (
           <img
             className="pm-card-image"
@@ -736,7 +779,9 @@ export default function PrepMasterApp() {
           <h3>{getTitle(batch)}</h3>
 
           {getDescription(batch) && (
-            <p>{getDescription(batch)}</p>
+            <p>
+              {getDescription(batch)}
+            </p>
           )}
 
           <div className="pm-price">
@@ -748,7 +793,9 @@ export default function PrepMasterApp() {
           <div className="pm-card-actions">
             <button
               className="pm-secondary"
-              onClick={() => openBatch(batch)}
+              onClick={() =>
+                openBatch(batch)
+              }
             >
               Study
             </button>
@@ -761,7 +808,9 @@ export default function PrepMasterApp() {
                   : enrollBatch(batch)
               }
             >
-              {enrolledNow ? 'Enrolled' : 'Enroll'}
+              {enrolledNow
+                ? 'Enrolled'
+                : 'Enroll'}
             </button>
           </div>
         </div>
@@ -769,7 +818,10 @@ export default function PrepMasterApp() {
     );
   }
 
-  function renderContentItem(item, index) {
+  function renderContentItem(
+    item,
+    index
+  ) {
     const folder = isFolder(item);
     const video = isVideo(item);
     const pdf = isPdf(item);
@@ -781,10 +833,6 @@ export default function PrepMasterApp() {
     else if (video) icon = '🎥';
     else if (pdf) icon = '📄';
     else if (test) icon = '📝';
-
-    const locked =
-      item?.is_locked === 1 ||
-      item?.data?.is_locked === 1;
 
     return (
       <div
@@ -800,8 +848,8 @@ export default function PrepMasterApp() {
           } else if (test) {
             openTest(item);
           } else {
-            alert(
-              'Is content type ka viewer abhi available nahi hai.'
+            setContentError(
+              'Is content ka supported viewer/source available nahi hai.'
             );
           }
         }}
@@ -825,8 +873,6 @@ export default function PrepMasterApp() {
               : test
               ? 'Test'
               : 'Content'}
-
-            {locked ? ' • 🔒' : ''}
           </div>
         </div>
 
@@ -882,7 +928,8 @@ export default function PrepMasterApp() {
           <div className="pm-error">
             {batchError}
           </div>
-        ) : filteredBatches.length === 0 ? (
+        ) : filteredBatches.length ===
+          0 ? (
           <div className="pm-state">
             No batches found.
           </div>
@@ -902,20 +949,30 @@ export default function PrepMasterApp() {
       <>
         <div className="pm-page-title">
           <h1>My Batches</h1>
-          <p>Your enrolled batches</p>
+          <p>
+            Your enrolled batches
+          </p>
         </div>
 
-        {enrolledBatches.length === 0 ? (
+        {enrolledBatches.length ===
+        0 ? (
           <div className="pm-empty">
             <div>📚</div>
-            <h3>No enrolled batches</h3>
+
+            <h3>
+              No enrolled batches
+            </h3>
+
             <p>
-              Enroll in a batch to see it here.
+              Enroll in a batch to see it
+              here.
             </p>
 
             <button
               className="pm-primary pm-small-button"
-              onClick={() => setPage('home')}
+              onClick={() =>
+                setPage('home')
+              }
             >
               Browse Batches
             </button>
@@ -931,7 +988,10 @@ export default function PrepMasterApp() {
     );
   }
 
-  function ComingSoon({ title, icon }) {
+  function ComingSoon({
+    title,
+    icon,
+  }) {
     return (
       <div className="pm-coming">
         <div className="pm-coming-icon">
@@ -983,10 +1043,15 @@ export default function PrepMasterApp() {
           </div>
         ) : contentItems.length === 0 ? (
           <div className="pm-empty">
-            <div>📂</div>
-            <h3>No content found</h3>
+            <div>📚</div>
+
+            <h3>
+              No content found
+            </h3>
+
             <p>
-              There is no content in this folder.
+              Is folder me abhi content
+              available nahi hai.
             </p>
           </div>
         ) : (
@@ -1000,22 +1065,24 @@ export default function PrepMasterApp() {
     );
   }
 
-  function TestScreen() {
+  function TestOverlay() {
     if (!activeTest) return null;
 
     return (
-      <div className="pm-test-overlay">
-        <div className="pm-test-card">
-          <div className="pm-test-top">
+      <div className="pm-popup-overlay">
+        <div className="pm-popup pm-test-popup">
+          <div className="pm-popup-top">
             <button
+              className="pm-close"
               onClick={closeTest}
-              className="pm-back"
             >
-              ← Close
+              ✕
             </button>
-
-            <h2>{activeTest.title}</h2>
           </div>
+
+          <h2>
+            {activeTest.title}
+          </h2>
 
           {testLoading ? (
             <div className="pm-state">
@@ -1024,28 +1091,6 @@ export default function PrepMasterApp() {
           ) : testError ? (
             <div className="pm-error">
               {testError}
-
-              <button
-                className="pm-primary pm-retry"
-                onClick={startTest}
-              >
-                Retry
-              </button>
-            </div>
-          ) : testQuestions.length === 0 ? (
-            <div className="pm-empty">
-              <div>📝</div>
-              <h3>Test data unavailable</h3>
-              <p>
-                Try loading the test again.
-              </p>
-
-              <button
-                className="pm-primary pm-small-button"
-                onClick={startTest}
-              >
-                Start Test
-              </button>
             </div>
           ) : testResult ? (
             <div className="pm-test-result">
@@ -1053,834 +1098,297 @@ export default function PrepMasterApp() {
                 🎉
               </div>
 
-              <h2>Test Completed</h2>
+              <h3>
+                Test Submitted
+              </h3>
 
-              <div className="pm-score">
-                {testResult.correct} /{' '}
+              <p>
+                Score:{" "}
+                <strong>
+                  {testResult.correct}
+                </strong>{" "}
+                /{" "}
                 {testResult.total}
-              </div>
+              </p>
 
               <button
-                className="pm-primary pm-small-button"
-                onClick={() => {
-                  setTestResult(null);
-                  setTestAnswers({});
-                }}
+                className="pm-primary"
+                onClick={closeTest}
               >
-                Try Again
+                Close
+              </button>
+            </div>
+          ) : testQuestions.length ===
+            0 ? (
+            <div className="pm-test-start">
+              <div className="pm-result-icon">
+                📝
+              </div>
+
+              <p>
+                Test questions load karne
+                ke liye Start Test dabao.
+              </p>
+
+              <button
+                className="pm-primary"
+                onClick={startTest}
+              >
+                Start Test
               </button>
             </div>
           ) : (
-            <>
-              <div className="pm-test-questions">
-                {testQuestions.map(
-                  (question, index) => {
-                    const options =
-                      getOptions(question);
+            <div className="pm-test-page">
+              {testQuestions.map(
+                (question, index) => {
+                  const options =
+                    getOptions(question);
 
-                    return (
-                      <div
-                        className="pm-question"
-                        key={index}
-                      >
-                        <h3>
-                          {index + 1}.{' '}
-                          {getQuestionText(
-                            question
-                          )}
-                        </h3>
-
-                        <div className="pm-options">
-                          {options.map(
-                            (option) => (
-                              <label
-                                className={`pm-option ${
-                                  String(
-                                    testAnswers[
-                                      index
-                                    ] ?? ''
-                                  ) ===
-                                  String(
-                                    option.key
-                                  )
-                                    ? 'selected'
-                                    : ''
-                                }`}
-                                key={option.key}
-                              >
-                                <input
-                                  type="radio"
-                                  name={`q-${index}`}
-                                  value={
-                                    option.key
-                                  }
-                                  checked={
-                                    String(
-                                      testAnswers[
-                                        index
-                                      ] ?? ''
-                                    ) ===
-                                    String(
-                                      option.key
-                                    )
-                                  }
-                                  onChange={() =>
-                                    setTestAnswers(
-                                      (prev) => ({
-                                        ...prev,
-                                        [index]:
-                                          option.key,
-                                      })
-                                    )
-                                  }
-                                />
-
-                                <span>
-                                  {option.key}.{' '}
-                                  {option.text}
-                                </span>
-                              </label>
-                            )
-                          )}
-                        </div>
+                  return (
+                    <div
+                      className="pm-test-question"
+                      key={index}
+                    >
+                      <div className="pm-test-question-title">
+                        {index + 1}.{" "}
+                        {getQuestionText(
+                          question
+                        )}
                       </div>
-                    );
-                  }
-                )}
-              </div>
+
+                      {options.map(
+                        (option) => (
+                          <label
+                            className="pm-test-option"
+                            key={option.key}
+                          >
+                            <input
+                              type="radio"
+                              name={`question-${index}`}
+                              value={
+                                option.key
+                              }
+                              checked={
+                                testAnswers[
+                                  index
+                                ] ===
+                                option.key
+                              }
+                              onChange={() =>
+                                setTestAnswers(
+                                  (prev) => ({
+                                    ...prev,
+                                    [index]:
+                                      option.key,
+                                  })
+                                )
+                              }
+                            />
+
+                            <span>
+                              <strong>
+                                {
+                                  option.key
+                                }
+                                .
+                              </strong>{" "}
+                              {option.text}
+                            </span>
+                          </label>
+                        )
+                      )}
+                    </div>
+                  );
+                }
+              )}
 
               <button
-                className="pm-primary pm-submit-test"
-                onClick={submitLocalTest}
+                className="pm-test-submit"
+                onClick={
+                  submitLocalTest
+                }
               >
                 Submit Test
               </button>
-            </>
+            </div>
           )}
         </div>
       </div>
     );
   }
 
-  return (
-    <main className="pm-app">
-      <style jsx global>{`
-        * {
-          box-sizing: border-box;
-        }
-
-        html,
-        body {
-          margin: 0;
-          padding: 0;
-          background: #f7f9fc;
-          font-family:
-            Inter,
-            ui-sans-serif,
-            system-ui,
-            -apple-system,
-            BlinkMacSystemFont,
-            "Segoe UI",
-            sans-serif;
-          color: #172033;
-        }
-
-        button,
-        input {
-          font: inherit;
-        }
-
-        button {
-          cursor: pointer;
-        }
-
-        .pm-app {
-          min-height: 100vh;
-          background: #f7f9fc;
-          padding-bottom: 84px;
-        }
-
-        .pm-header {
-          position: sticky;
-          top: 0;
-          z-index: 100;
-          height: 64px;
-          background: rgba(255,255,255,.96);
-          backdrop-filter: blur(12px);
-          border-bottom: 1px solid #e9edf3;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 0 18px;
-        }
-
-        .pm-brand {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          min-width: 0;
-        }
-
-        .pm-brand img {
-          width: 38px;
-          height: 38px;
-          object-fit: contain;
-          border-radius: 10px;
-        }
-
-        .pm-brand strong {
-          font-size: 19px;
-          white-space: nowrap;
-        }
-
-        .pm-menu-button {
-          width: 40px;
-          height: 40px;
-          border: 0;
-          background: #f3f6fa;
-          border-radius: 12px;
-          font-size: 21px;
-        }
-
-        .pm-menu {
-          position: fixed;
-          top: 70px;
-          right: 14px;
-          z-index: 500;
-          width: 245px;
-          background: white;
-          border: 1px solid #e7ebf1;
-          border-radius: 18px;
-          padding: 8px;
-          box-shadow:
-            0 18px 50px rgba(30,45,70,.16);
-        }
-
-        .pm-menu button {
-          width: 100%;
-          padding: 13px 12px;
-          border: 0;
-          background: transparent;
-          text-align: left;
-          border-radius: 12px;
-          font-size: 15px;
-        }
-
-        .pm-menu button:hover {
-          background: #f4f7fb;
-        }
-
-        .pm-main {
-          width: min(1180px, 100%);
-          margin: auto;
-          padding: 20px 16px 30px;
-        }
-
-        .pm-hero {
-          background: white;
-          border: 1px solid #e8edf3;
-          border-radius: 24px;
-          padding: 26px;
-          margin-bottom: 16px;
-        }
-
-        .pm-small {
-          font-size: 12px;
-          color: #7b8799;
-          font-weight: 700;
-          letter-spacing: .08em;
-        }
-
-        .pm-hero h1 {
-          margin: 7px 0 4px;
-          font-size: clamp(28px, 6vw, 42px);
-        }
-
-        .pm-hero p,
-        .pm-page-title p {
-          margin: 0;
-          color: #758196;
-        }
-
-        .pm-search-wrap {
-          height: 50px;
-          background: white;
-          border: 1px solid #e5eaf0;
-          border-radius: 15px;
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 0 15px;
-          margin-bottom: 24px;
-        }
-
-        .pm-search-wrap input {
-          width: 100%;
-          border: 0;
-          outline: 0;
-          background: transparent;
-        }
-
-        .pm-section-head {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 14px;
-        }
-
-        .pm-section-head h2 {
-          margin: 0;
-          font-size: 21px;
-        }
-
-        .pm-section-head button {
-          border: 0;
-          background: white;
-          border: 1px solid #e5eaf0;
-          border-radius: 10px;
-          width: 38px;
-          height: 38px;
-        }
-
-        .pm-grid {
-          display: grid;
-          grid-template-columns:
-            repeat(auto-fill, minmax(250px, 1fr));
-          gap: 16px;
-        }
-
-        .pm-card {
-          overflow: hidden;
-          background: white;
-          border: 1px solid #e6ebf1;
-          border-radius: 18px;
-          box-shadow:
-            0 5px 20px rgba(35,55,85,.05);
-        }
-
-        .pm-card-image,
-        .pm-card-placeholder {
-          width: 100%;
-          aspect-ratio: 16 / 9;
-          object-fit: cover;
-          display: block;
-        }
-
-        .pm-card-placeholder {
-          background: #edf4ff;
-          display: grid;
-          place-items: center;
-          font-size: 42px;
-        }
-
-        .pm-card-body {
-          padding: 15px;
-        }
-
-        .pm-card-body h3 {
-          margin: 0 0 7px;
-          font-size: 17px;
-        }
-
-        .pm-card-body p {
-          color: #788398;
-          font-size: 13px;
-          margin: 0 0 10px;
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-
-        .pm-price {
-          font-weight: 800;
-          margin-bottom: 13px;
-        }
-
-        .pm-card-actions {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 9px;
-        }
-
-        .pm-primary,
-        .pm-secondary {
-          min-height: 42px;
-          border-radius: 11px;
-          padding: 0 14px;
-          font-weight: 700;
-        }
-
-        .pm-primary {
-          color: white;
-          border: 0;
-          background: #1769ff;
-        }
-
-        .pm-secondary {
-          color: #1769ff;
-          background: white;
-          border: 1px solid #bcd2ff;
-        }
-
-        .pm-page-title {
-          margin: 5px 0 22px;
-        }
-
-        .pm-page-title h1 {
-          margin: 5px 0;
-          font-size: 27px;
-        }
-
-        .pm-back {
-          border: 0;
-          background: transparent;
-          color: #1769ff;
-          padding: 0;
-          font-weight: 700;
-        }
-
-        .pm-state,
-        .pm-error,
-        .pm-empty,
-        .pm-coming {
-          background: white;
-          border: 1px solid #e5eaf0;
-          border-radius: 18px;
-          padding: 28px;
-          text-align: center;
-        }
-
-        .pm-error {
-          color: #b42318;
-          background: #fff7f6;
-          border-color: #ffd7d2;
-        }
-
-        .pm-empty > div,
-        .pm-coming-icon {
-          font-size: 42px;
-        }
-
-        .pm-empty h3,
-        .pm-coming h2 {
-          margin: 10px 0 6px;
-        }
-
-        .pm-empty p,
-        .pm-coming p {
-          margin: 0 0 18px;
-          color: #788398;
-        }
-
-        .pm-small-button {
-          padding: 0 18px;
-        }
-
-        .pm-content-list {
-          display: grid;
-          gap: 10px;
-        }
-
-        .pm-content-item {
-          min-height: 70px;
-          display: flex;
-          align-items: center;
-          gap: 13px;
-          background: white;
-          border: 1px solid #e5eaf0;
-          border-radius: 15px;
-          padding: 11px 14px;
-          cursor: pointer;
-          transition: .15s ease;
-        }
-
-        .pm-content-item:hover {
-          transform: translateY(-1px);
-          box-shadow:
-            0 7px 20px rgba(30,50,80,.07);
-        }
-
-        .pm-content-icon {
-          width: 44px;
-          height: 44px;
-          border-radius: 12px;
-          background: #edf4ff;
-          display: grid;
-          place-items: center;
-          font-size: 22px;
-          flex: 0 0 auto;
-        }
-
-        .pm-content-info {
-          min-width: 0;
-          flex: 1;
-        }
-
-        .pm-content-title {
-          font-weight: 700;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-
-        .pm-content-meta {
-          margin-top: 4px;
-          color: #7b8799;
-          font-size: 12px;
-        }
-
-        .pm-content-arrow {
-          color: #8b96a8;
-          font-size: 20px;
-        }
-
-        .pm-bottom {
-          position: fixed;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          z-index: 200;
-          height: 70px;
-          background: rgba(255,255,255,.97);
-          backdrop-filter: blur(12px);
-          border-top: 1px solid #e5eaf0;
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          padding: 5px 8px;
-        }
-
-        .pm-bottom button {
-          border: 0;
-          background: transparent;
-          color: #7b8799;
-          font-size: 11px;
-        }
-
-        .pm-bottom button.active {
-          color: #1769ff;
-          font-weight: 800;
-        }
-
-        .pm-bottom span {
-          display: block;
-          font-size: 21px;
-          margin-bottom: 2px;
-        }
-
-        .pm-popup-backdrop,
-        .pm-player-overlay,
-        .pm-test-overlay {
-          position: fixed;
-          inset: 0;
-          z-index: 1000;
-          background: rgba(9,18,32,.55);
-          display: grid;
-          place-items: center;
-          padding: 16px;
-        }
-
-        .pm-popup {
-          width: min(420px, 100%);
-          background: white;
-          border-radius: 22px;
-          padding: 28px;
-          text-align: center;
-        }
-
-        .pm-popup-logo {
-          width: 65px;
-          height: 65px;
-          object-fit: contain;
-          margin-bottom: 8px;
-        }
-
-        .pm-popup h2 {
-          margin: 5px 0 8px;
-        }
-
-        .pm-popup p {
-          color: #778398;
-        }
-
-        .pm-popup button {
-          width: 100%;
-          margin-top: 8px;
-        }
-
-        .pm-player {
-          width: min(1100px, 100%);
-          height: min(88vh, 760px);
-          background: #fff;
-          border-radius: 18px;
-          overflow: hidden;
-          display: flex;
-          flex-direction: column;
-        }
-
-        .pm-player-header {
-          min-height: 58px;
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 0 14px;
-          border-bottom: 1px solid #e5eaf0;
-        }
-
-        .pm-player-header strong {
-          flex: 1;
-          min-width: 0;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-
-        .pm-player-close {
-          width: 38px;
-          height: 38px;
-          border: 0;
-          border-radius: 10px;
-          background: #f1f4f8;
-        }
-
-        .pm-video {
-          width: 100%;
-          height: 100%;
-          background: #000;
-          object-fit: contain;
-        }
-
-        .pm-pdf-frame {
-          width: 100%;
-          flex: 1;
-          border: 0;
-          background: #f2f4f7;
-        }
-
-        .pm-test-card {
-          width: min(850px, 100%);
-          max-height: 92vh;
-          overflow: auto;
-          background: white;
-          border-radius: 20px;
-          padding: 20px;
-        }
-
-        .pm-test-top {
-          position: sticky;
-          top: -20px;
-          background: white;
-          padding: 5px 0 15px;
-          border-bottom: 1px solid #e8edf3;
-          z-index: 2;
-        }
-
-        .pm-test-top h2 {
-          margin: 10px 0 0;
-        }
-
-        .pm-question {
-          padding: 18px 0;
-          border-bottom: 1px solid #edf0f4;
-        }
-
-        .pm-question h3 {
-          margin: 0 0 12px;
-          font-size: 16px;
-        }
-
-        .pm-options {
-          display: grid;
-          gap: 8px;
-        }
-
-        .pm-option {
-          display: flex;
-          align-items: center;
-          gap: 9px;
-          padding: 11px;
-          border: 1px solid #e3e8ef;
-          border-radius: 11px;
-        }
-
-        .pm-option.selected {
-          border-color: #1769ff;
-          background: #f1f6ff;
-        }
-
-        .pm-submit-test {
-          width: 100%;
-          margin-top: 18px;
-        }
-
-        .pm-test-result {
-          text-align: center;
-          padding: 50px 15px;
-        }
-
-        .pm-result-icon {
-          font-size: 50px;
-        }
-
-        .pm-score {
-          font-size: 42px;
-          font-weight: 900;
-          margin: 15px 0 25px;
-        }
-
-        .pm-retry {
-          margin-top: 15px;
-        }
-
-        @media (max-width: 600px) {
-          .pm-main {
-            padding: 15px 12px 25px;
-          }
-
-          .pm-hero {
-            padding: 21px;
-          }
-
-          .pm-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .pm-player {
-            width: 100%;
-            height: 94vh;
-            border-radius: 14px;
-          }
-
-          .pm-popup-backdrop,
-          .pm-player-overlay,
-          .pm-test-overlay {
-            padding: 8px;
-          }
-
-          .pm-test-card {
-            max-height: 96vh;
-          }
-        }
-      `}</style>
-
-      <header className="pm-header">
-        <div className="pm-brand">
-          <img
-            src="/prep-master-logo.png"
-            alt="Prep Master"
-            onError={(e) => {
-              e.currentTarget.src =
-                '/prep-master-icon.png';
-            }}
-          />
-
-          <strong>Prep Master</strong>
+  function PlayerOverlay() {
+    if (!player && !playerLoading && !playerError) {
+      return null;
+    }
+
+    if (
+      player?.type === 'pdf'
+    ) {
+      return (
+        <PdfPlayer
+          url={player.url}
+          title={player.title}
+          onClose={closePlayer}
+        />
+      );
+    }
+
+    return (
+      <div className="pm-player-overlay">
+        <div className="pm-player-header">
+          <button
+            onClick={closePlayer}
+          >
+            ←
+          </button>
+
+          <div className="pm-player-title">
+            {player?.title ||
+              'Player'}
+          </div>
         </div>
 
-        <button
-          className="pm-menu-button"
-          onClick={() =>
-            setMenuOpen((prev) => !prev)
+        <div className="pm-player-content">
+          {playerLoading ? (
+            <div className="pm-loading">
+              Loading...
+            </div>
+          ) : playerError ? (
+            <div className="pm-error">
+              {playerError}
+            </div>
+          ) : player?.type ===
+            'video' ? (
+            <video
+              src={player.url}
+              controls
+              playsInline
+              autoPlay
+            />
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  function SideMenu() {
+    if (!menuOpen) return null;
+
+    return (
+      <div
+        className="pm-menu-overlay"
+        onClick={() =>
+          setMenuOpen(false)
+        }
+      >
+        <div
+          className="pm-menu"
+          onClick={(e) =>
+            e.stopPropagation()
           }
         >
-          ⋮
-        </button>
-      </header>
+          <div className="pm-menu-header">
+            <div className="pm-menu-title">
+              Prep Master
+            </div>
 
-      {menuOpen && (
-        <div className="pm-menu">
-          <button
-            onClick={() => {
-              setMenuOpen(false);
-              setPage('home');
-            }}
-          >
-            📚 Batches
-          </button>
-
-          <button
-            onClick={() => {
-              setMenuOpen(false);
-              setPage('mybatches');
-            }}
-          >
-            📖 My Batches
-          </button>
-
-          <button
-            onClick={() => {
-              const url =
-                process.env
-                  .NEXT_PUBLIC_TELEGRAM_URL;
-
-              if (url) {
-                window.open(
-                  url,
-                  '_blank',
-                  'noopener,noreferrer'
-                );
+            <button
+              className="pm-menu-close"
+              onClick={() =>
+                setMenuOpen(false)
               }
-            }}
-          >
-            ✈️ Join Telegram
-          </button>
+            >
+              ✕
+            </button>
+          </div>
 
-          <button
-            onClick={() => {
-              const url =
-                process.env
-                  .NEXT_PUBLIC_OWNER_CONTACT;
+          <div className="pm-menu-list">
+            <button
+              className="pm-menu-item"
+              onClick={() => {
+                setPage('home');
+                setMenuOpen(false);
+              }}
+            >
+              📚 Batches
+            </button>
 
-              if (url) {
-                window.open(
-                  url,
-                  '_blank',
-                  'noopener,noreferrer'
+            <button
+              className="pm-menu-item"
+              onClick={() => {
+                setPage('my');
+                setMenuOpen(false);
+              }}
+            >
+              📖 My Batches
+            </button>
+
+            <button
+              className="pm-menu-item"
+              onClick={() => {
+                const url =
+                  process.env
+                    .NEXT_PUBLIC_TELEGRAM_URL;
+
+                if (url) {
+                  window.open(
+                    url,
+                    '_blank',
+                    'noopener,noreferrer'
+                  );
+                } else {
+                  alert(
+                    'Telegram link configured nahi hai.'
+                  );
+                }
+              }}
+            >
+              ✈️ Join Telegram
+            </button>
+
+            <button
+              className="pm-menu-item"
+              onClick={() => {
+                const url =
+                  process.env
+                    .NEXT_PUBLIC_OWNER_CONTACT;
+
+                if (url) {
+                  window.open(
+                    url,
+                    '_blank',
+                    'noopener,noreferrer'
+                  );
+                } else {
+                  alert(
+                    'Owner contact configured nahi hai.'
+                  );
+                }
+              }}
+            >
+              👤 Contact Owner
+            </button>
+
+            <button
+              className="pm-menu-item"
+              onClick={() => {
+                alert(
+                  'Admin Panel coming soon.'
                 );
-              }
-            }}
-          >
-            👤 Contact Owner
-          </button>
-
-          <button
-            onClick={() => {
-              setMenuOpen(false);
-              alert(
-                'Admin Panel will be available soon.'
-              );
-            }}
-          >
-            ⚙️ Admin Panel
-          </button>
+              }}
+            >
+              ⚙️ Admin Panel
+            </button>
+          </div>
         </div>
-      )}
-
-      <div className="pm-main">
-        {page === 'home' && <HomePage />}
-
-        {page === 'mybatches' && (
-          <MyBatchesPage />
-        )}
-
-        {page === 'batch' && <BatchPage />}
-
-        {page === 'community' && (
-          <ComingSoon
-            title="Community"
-            icon="💬"
-          />
-        )}
-
-        {page === 'ai' && (
-          <ComingSoon
-            title="AI Doubts"
-            icon="🤖"
-          />
-        )}
       </div>
+    );
+  }
 
-      <nav className="pm-bottom">
+  function BottomNav() {
+    return (
+      <nav className="pm-bottom-nav">
         <button
           className={
             page === 'community'
@@ -1891,22 +1399,32 @@ export default function PrepMasterApp() {
             setPage('community')
           }
         >
-          <span>💬</span>
-          Community
+          <span className="pm-bottom-nav-icon">
+            💬
+          </span>
+
+          <span>
+            Community
+          </span>
         </button>
 
         <button
           className={
-            page === 'mybatches'
+            page === 'my'
               ? 'active'
               : ''
           }
           onClick={() =>
-            setPage('mybatches')
+            setPage('my')
           }
         >
-          <span>📖</span>
-          My Batches
+          <span className="pm-bottom-nav-icon">
+            📖
+          </span>
+
+          <span>
+            My Batches
+          </span>
         </button>
 
         <button
@@ -1916,25 +1434,106 @@ export default function PrepMasterApp() {
               ? 'active'
               : ''
           }
-          onClick={() => setPage('home')}
+          onClick={() =>
+            setPage('home')
+          }
         >
-          <span>📚</span>
-          Batches
+          <span className="pm-bottom-nav-icon">
+            📚
+          </span>
+
+          <span>
+            Batches
+          </span>
         </button>
 
         <button
           className={
-            page === 'ai' ? 'active' : ''
+            page === 'ai'
+              ? 'active'
+              : ''
           }
-          onClick={() => setPage('ai')}
+          onClick={() =>
+            setPage('ai')
+          }
         >
-          <span>🤖</span>
-          AI Doubts
+          <span className="pm-bottom-nav-icon">
+            🤖
+          </span>
+
+          <span>
+            AI Doubts
+          </span>
         </button>
       </nav>
+    );
+  }
+
+  function renderPage() {
+    if (page === 'my') {
+      return <MyBatchesPage />;
+    }
+
+    if (page === 'community') {
+      return (
+        <ComingSoon
+          title="Community"
+          icon="💬"
+        />
+      );
+    }
+
+    if (page === 'ai') {
+      return (
+        <ComingSoon
+          title="AI Doubts"
+          icon="🤖"
+        />
+      );
+    }
+
+    if (page === 'batch') {
+      return <BatchPage />;
+    }
+
+    return <HomePage />;
+  }
+
+  return (
+    <div className="pm-app">
+      <header className="pm-header">
+        <div className="pm-brand">
+          <img
+            src="/prep-master-logo.png"
+            alt="Prep Master"
+          />
+
+          <div className="pm-brand-title">
+            Prep Master
+          </div>
+        </div>
+
+        <button
+          className="pm-menu-button"
+          onClick={() =>
+            setMenuOpen(true)
+          }
+          aria-label="Open menu"
+        >
+          ⋮
+        </button>
+      </header>
+
+      <main className="pm-container">
+        {renderPage()}
+      </main>
+
+      <BottomNav />
+
+      <SideMenu />
 
       {enrollPopup && (
-        <div className="pm-popup-backdrop">
+        <div className="pm-popup-overlay">
           <div className="pm-popup">
             <img
               className="pm-popup-logo"
@@ -1947,119 +1546,25 @@ export default function PrepMasterApp() {
             </h2>
 
             <p>
-              You have successfully enrolled
-              in <strong>
-                {getTitle(enrollPopup)}
-              </strong>.
+              You have successfully
+              enrolled in this batch.
             </p>
 
             <button
               className="pm-primary"
-              onClick={() => {
-                setEnrollPopup(null);
-                openBatch(enrollPopup);
-              }}
-            >
-              Start Studying
-            </button>
-
-            <button
-              className="pm-secondary"
               onClick={() =>
                 setEnrollPopup(null)
               }
             >
-              Close
+              Continue
             </button>
           </div>
         </div>
       )}
 
-      {player && (
-        <div className="pm-player-overlay">
-          <div className="pm-player">
-            <div className="pm-player-header">
-              <button
-                className="pm-player-close"
-                onClick={closePlayer}
-              >
-                ←
-              </button>
+      <PlayerOverlay />
 
-              <strong>
-                {player.title}
-              </strong>
-
-              {player.type === 'pdf' && (
-                <a
-                  href={player.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="pm-secondary"
-                  style={{
-                    display: 'grid',
-                    placeItems: 'center',
-                    textDecoration: 'none',
-                    minHeight: 36,
-                  }}
-                >
-                  Open
-                </a>
-              )}
-            </div>
-
-            {player.type === 'video' && (
-              <video
-                className="pm-video"
-                src={player.url}
-                controls
-                playsInline
-                autoPlay
-              />
-            )}
-
-            {player.type === 'pdf' && (
-              <iframe
-                className="pm-pdf-frame"
-                src={player.url}
-                title={player.title}
-              />
-            )}
-          </div>
-        </div>
-      )}
-
-      {playerLoading && (
-        <div className="pm-popup-backdrop">
-          <div className="pm-popup">
-            <h2>Loading...</h2>
-            <p>
-              Please wait while the content
-              loads.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {playerError && !player && (
-        <div className="pm-popup-backdrop">
-          <div className="pm-popup">
-            <h2>Unable to play</h2>
-            <p>{playerError}</p>
-
-            <button
-              className="pm-primary"
-              onClick={() =>
-                setPlayerError('')
-              }
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-
-      {activeTest && <TestScreen />}
-    </main>
+      <TestOverlay />
+    </div>
   );
 }

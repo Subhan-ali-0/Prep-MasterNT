@@ -1,5 +1,29 @@
-import {NextResponse} from 'next/server';import {cookies} from 'next/headers';import {getDb} from '../../../../../../lib/mongodb';import {validSession,COOKIE} import { ... } from '../../../../../lib/admin';
-import { ... } from '../../../../../lib/mongodb';
-async function ok(){return validSession((await cookies()).get(COOKIE)?.value)}
-export async function GET(){if(!await ok())return NextResponse.json({success:false,error:'Unauthorized'},{status:401});const d=await getDb();const x=await d.collection('settings').findOne({key:'main'});return NextResponse.json({success:true,settings:x?.data||{}})}
-export async function PUT(req){if(!await ok())return NextResponse.json({success:false,error:'Unauthorized'},{status:401});const b=await req.json();const data={appName:String(b.appName??'Prep Master'),telegramUrl:String(b.telegramUrl??''),ownerContact:String(b.ownerContact??''),heroTitle:String(b.heroTitle??''),heroSubtitle:String(b.heroSubtitle??''),updatedAt:new Date()};const d=await getDb();await d.collection('settings').updateOne({key:'main'},{$set:{data},$setOnInsert:{key:'main',createdAt:new Date()}},{upsert:true});return NextResponse.json({success:true,settings:data})}
+import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { getDb } from '../../../../../lib/mongodb';
+import { validSession, COOKIE } from '../../../../../lib/admin';
+
+async function isAuthorized() {
+  const cookieStore = await cookies();
+  return validSession(cookieStore.get(COOKIE)?.value);
+}
+
+export async function GET() {
+  if (!(await isAuthorized())) {
+    return NextResponse.json(
+      { success: false, error: 'Unauthorized' },
+      { status: 401 }
+    );
+  }
+
+  const db = await getDb();
+
+  const settings = await db
+    .collection('settings')
+    .findOne({ key: 'main' });
+
+  return NextResponse.json({
+    success: true,
+    settings: settings?.data || {},
+  });
+}

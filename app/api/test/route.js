@@ -9,8 +9,8 @@ export async function GET(req) {
     const testInstructions = searchParams.get('test_instructions');
     const testData = searchParams.get('test_data');
 
-    let param = '';
-    let value = '';
+    let param;
+    let value;
 
     if (testInstructions) {
       param = 'test_instructions';
@@ -28,9 +28,23 @@ export async function GET(req) {
       );
     }
 
+    const key = process.env.STUDYBEE_KEY;
+    const deviceId = process.env.STUDYBEE_DEVICE_ID;
+
+    if (!key || !deviceId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'STUDYBEE_KEY or STUDYBEE_DEVICE_ID is missing on server.',
+        },
+        { status: 500 }
+      );
+    }
+
     const url =
       `${SOURCE}?${param}=${encodeURIComponent(value)}` +
-      `&_t=${Date.now()}`;
+      `&key=${encodeURIComponent(key)}` +
+      `&device_id=${encodeURIComponent(deviceId)}`;
 
     const response = await fetch(url, {
       method: 'GET',
@@ -51,7 +65,7 @@ export async function GET(req) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Test source returned invalid JSON',
+          error: 'Test source returned invalid JSON.',
           status: response.status,
           preview: text.slice(0, 500),
         },
@@ -66,21 +80,28 @@ export async function GET(req) {
           error: `Test source returned HTTP ${response.status}`,
           sourceData: data,
         },
-        { status: 502 }
+        { status: response.status }
       );
     }
 
-    return NextResponse.json({
-      success: true,
-      data: data?.data ?? data,
-      responseCode: data?.responseCode ?? null,
-      message: data?.message ?? null,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        data: data?.data ?? data,
+        responseCode: data?.responseCode ?? null,
+        message: data?.message ?? null,
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store',
+        },
+      }
+    );
   } catch (error) {
     return NextResponse.json(
       {
         success: false,
-        error: error?.message || 'Unable to load test',
+        error: error?.message || 'Unable to load test.',
       },
       { status: 502 }
     );

@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
 
 const SOURCE = 'https://nt.studybeepro.site/api/nig';
-const FALLBACK = 'https://nts.khatikgaurav38.workers.dev/';
 
-async function requestJSON(url) {
+async function fetchJSON(url) {
   const response = await fetch(url, {
     method: 'GET',
     cache: 'no-store',
@@ -15,13 +14,10 @@ async function requestJSON(url) {
 
   const text = await response.text();
 
+  let data = null;
+
   try {
-    return {
-      ok: response.ok,
-      status: response.status,
-      data: JSON.parse(text),
-      text,
-    };
+    data = JSON.parse(text);
   } catch {
     return {
       ok: false,
@@ -30,6 +26,13 @@ async function requestJSON(url) {
       text,
     };
   }
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    data,
+    text,
+  };
 }
 
 export async function GET(req) {
@@ -49,64 +52,46 @@ export async function GET(req) {
       );
     }
 
-    const query =
-      `?content=${encodeURIComponent(content)}` +
+    const url =
+      `${SOURCE}?content=${encodeURIComponent(content)}` +
       `&folder=${encodeURIComponent(folder)}` +
       `&_t=${Date.now()}`;
 
-    /* -------------------------
-       1. MAIN API
-    ------------------------- */
+    /*
+     * First request
+     */
+    let result = await fetchJSON(url);
 
-    let result = await requestJSON(
-      `${SOURCE}${query}`
-    );
-
-    /* -------------------------
-       2. RETRY MAIN API
-    ------------------------- */
-
+    /*
+     * Retry once if upstream returned HTML/invalid JSON
+     */
     if (!result.data) {
       await new Promise((resolve) =>
         setTimeout(resolve, 500)
       );
 
-      result = await requestJSON(
-        `${SOURCE}${query}`
-      );
+      result = await fetchJSON(url);
     }
 
-    /* -------------------------
-       3. FALLBACK WORKER
-    ------------------------- */
-
-    if (!result.data) {
-      result = await requestJSON(
-        `${FALLBACK}${query}`
-      );
-    }
-
-    /* -------------------------
-       INVALID RESPONSE
-    ------------------------- */
-
+    /*
+     * Upstream returned something other than JSON
+     */
     if (!result.data) {
       return NextResponse.json(
         {
           success: false,
-          error:
-            'Content source returned invalid JSON.',
+          error: 'Content source returned invalid JSON.',
           status: result.status,
-          preview: result.text?.slice(0, 300) || '',
+          preview:
+            result.text?.slice(0, 500) || '',
         },
         { status: 502 }
       );
     }
 
-    /* -------------------------
-       UPSTREAM ERROR
-    ------------------------- */
-
+    /*
+     * Upstream returned JSON but HTTP error
+     */
     if (!result.ok) {
       return NextResponse.json(
         {
@@ -119,15 +104,25 @@ export async function GET(req) {
       );
     }
 
-    /* -------------------------
-       NORMAL RESPONSE
-    ------------------------- */
+    /*
+     * Normal StudyBee response:
+     *
+     * {
+     *   responseCode: 3006,
+     *   message: "Course Content",
+     *   data: [...]
+     * }
+     */
+
+    const contentData = Array.isArray(
+      result.data?.data
+    )
+      ? result.data.data
+      : [];
 
     return NextResponse.json({
       success: true,
-      data: Array.isArray(result.data?.data)
-        ? result.data.data
-        : [],
+      data: contentData,
       responseCode:
         result.data?.responseCode ?? null,
       message:

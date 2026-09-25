@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 
 const STORAGE_KEY = 'pm_enrolled';
-const TELEGRAM_URL = process.env.NEXT_PUBLIC_TELEGRAM_URL || '';
-const OWNER_CONTACT = process.env.NEXT_PUBLIC_OWNER_CONTACT || '';
+const TELEGRAM_URL = process.env.https://t.me/prepmaster0 || '';
+const OWNER_CONTACT = process.env.t.me/Subhanali011 || '';
 
 function date(v) {
   if (!v) return '';

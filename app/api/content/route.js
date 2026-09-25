@@ -6,39 +6,34 @@ export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
 
-    const content = searchParams.get('content');
-    const folder = searchParams.get('folder') || '0';
+    const content = searchParams.get('content')?.trim();
+    const folder = searchParams.get('folder')?.trim() || '0';
 
     if (!content) {
       return NextResponse.json(
-        { success: false, error: 'Missing content ID' },
+        {
+          success: false,
+          error: 'Missing content ID',
+        },
         { status: 400 }
       );
     }
 
-    const url =
+    const sourceUrl =
       `${SOURCE}?content=${encodeURIComponent(content)}` +
       `&folder=${encodeURIComponent(folder)}` +
       `&_t=${Date.now()}`;
 
-    const response = await fetch(url, {
+    const response = await fetch(sourceUrl, {
+      method: 'GET',
       cache: 'no-store',
       headers: {
         Accept: 'application/json',
+        'User-Agent': 'Prep-Master',
       },
     });
 
     const text = await response.text();
-
-    if (!response.ok) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Source returned ${response.status}`,
-        },
-        { status: 502 }
-      );
-    }
 
     let data;
 
@@ -48,7 +43,19 @@ export async function GET(req) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Content source did not return JSON',
+          error: 'Source returned invalid JSON',
+          status: response.status,
+        },
+        { status: 502 }
+      );
+    }
+
+    if (!response.ok) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Source returned ${response.status}`,
+          sourceData: data,
         },
         { status: 502 }
       );
@@ -62,9 +69,9 @@ export async function GET(req) {
     return NextResponse.json(
       {
         success: false,
-        error: error.message || 'Unable to load content',
+        error: error?.message || 'Unable to load content',
       },
-      { status: 500 }
+      { status: 502 }
     );
   }
 }

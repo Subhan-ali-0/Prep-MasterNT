@@ -10,34 +10,32 @@ const defaults = {
   heroSubtitle: 'Your study space for batches, lectures and notes.',
 };
 
-/* =========================
-   HELPERS
-========================= */
+/* ---------------- HELPERS ---------------- */
 
 function arr(x) {
   if (Array.isArray(x)) return x;
-
-  if (x?.data?.data && Array.isArray(x.data.data)) {
-    return x.data.data;
-  }
 
   if (x?.data && Array.isArray(x.data)) {
     return x.data;
   }
 
-  if (x?.items && Array.isArray(x.items)) {
+  if (x?.data?.data && Array.isArray(x.data.data)) {
+    return x.data.data;
+  }
+
+  if (x && Array.isArray(x.items)) {
     return x.items;
   }
 
-  if (x?.content && Array.isArray(x.content)) {
+  if (x && Array.isArray(x.content)) {
     return x.content;
   }
 
-  if (x?.data?.items && Array.isArray(x.data.items)) {
+  if (x?.data && Array.isArray(x.data.items)) {
     return x.data.items;
   }
 
-  if (x?.data?.content && Array.isArray(x.data.content)) {
+  if (x?.data && Array.isArray(x.data.content)) {
     return x.data.content;
   }
 
@@ -45,7 +43,9 @@ function arr(x) {
 }
 
 function id(x) {
-  if (!x || typeof x !== 'object') return '';
+  if (!x || typeof x !== 'object') {
+    return '';
+  }
 
   return String(
     x.entity_id ??
@@ -94,9 +94,48 @@ function folder(x) {
   );
 }
 
-/* =========================
-   APP
-========================= */
+/* ---------------- FILE TYPE HELPERS ---------------- */
+
+function fileType(x) {
+  return String(
+    x?.data?.file_type ??
+      x?.file_type ??
+      ''
+  );
+}
+
+function contentType(x) {
+  return String(
+    x?.data?.content_type ??
+      x?.content_type ??
+      ''
+  );
+}
+
+function hasPdf(x) {
+  return String(
+    x?.data?.has_pdf ??
+      x?.has_pdf ??
+      ''
+  ) === '1';
+}
+
+function isVideo(x) {
+  return (
+    fileType(x) === '2' ||
+    contentType(x) === '2'
+  );
+}
+
+function isPdf(x) {
+  return (
+    hasPdf(x) ||
+    fileType(x) === '3' ||
+    contentType(x) === '3'
+  );
+}
+
+/* ---------------- APP ---------------- */
 
 export default function PrepMasterApp() {
   const [s] = useState(defaults);
@@ -117,11 +156,11 @@ export default function PrepMasterApp() {
 
   const [menu, setMenu] = useState(false);
   const [enroll, setEnroll] = useState(false);
-  const [player, setPlayer] = useState(null);
 
-  /* =========================
-     LOAD BATCHES
-  ========================= */
+  const [player, setPlayer] = useState(null);
+  const [pdf, setPdf] = useState(null);
+
+  /* ---------------- LOAD BATCHES ---------------- */
 
   useEffect(() => {
     try {
@@ -138,32 +177,21 @@ export default function PrepMasterApp() {
 
     fetch('/api/batches', {
       cache: 'no-store',
-      headers: {
-        Accept: 'application/json',
-      },
     })
       .then(async (r) => {
         const text = await r.text();
-
-        if (!r.ok) {
-          throw new Error(
-            `Batches API error: HTTP ${r.status} ${r.statusText}`
-          );
-        }
 
         let j;
 
         try {
           j = JSON.parse(text);
         } catch {
-          console.error('Batches API response:', text);
-
           throw new Error(
-            `Batches API returned non-JSON response (HTTP ${r.status}).`
+            'Batches API returned invalid JSON'
           );
         }
 
-        if (!j.success) {
+        if (!r.ok || !j.success) {
           throw new Error(
             j.error || 'Unable to load batches'
           );
@@ -185,9 +213,7 @@ export default function PrepMasterApp() {
       });
   }, []);
 
-  /* =========================
-     SEARCH
-  ========================= */
+  /* ---------------- SEARCH ---------------- */
 
   const filtered = useMemo(() => {
     return bs.filter((b) =>
@@ -197,9 +223,7 @@ export default function PrepMasterApp() {
     );
   }, [bs, q]);
 
-  /* =========================
-     ENROLLMENT
-  ========================= */
+  /* ---------------- ENROLLMENT ---------------- */
 
   function save(x) {
     setEn(x);
@@ -212,9 +236,7 @@ export default function PrepMasterApp() {
     } catch {}
   }
 
-  /* =========================
-     OPEN BATCH
-  ========================= */
+  /* ---------------- OPEN BATCH ---------------- */
 
   async function open(b) {
     setSel(b);
@@ -224,79 +246,36 @@ export default function PrepMasterApp() {
     setLoading(true);
     setErr('');
 
-    const contentUrl =
-      `/api/content?content=${encodeURIComponent(
-        String(b.id).trim()
-      )}&folder=0`;
-
     try {
-      const r = await fetch(contentUrl, {
-        cache: 'no-store',
-        headers: {
-          Accept: 'application/json',
-        },
-      });
+      const r = await fetch(
+        `/api/content?content=${encodeURIComponent(
+          String(b.id).trim()
+        )}&folder=0`,
+        {
+          cache: 'no-store',
+        }
+      );
 
       const text = await r.text();
-
-      /*
-        IMPORTANT:
-        Check HTTP status before parsing JSON.
-      */
-
-      if (!r.ok) {
-        console.error(
-          'Content API HTTP error:',
-          r.status,
-          r.statusText,
-          text
-        );
-
-        throw new Error(
-          `Content API error: HTTP ${r.status} ${r.statusText}`
-        );
-      }
 
       let j;
 
       try {
         j = JSON.parse(text);
       } catch {
-        console.error(
-          'Content API URL:',
-          contentUrl
-        );
-
-        console.error(
-          'Content API response:',
-          text
-        );
-
         throw new Error(
-          `Content API returned non-JSON response (HTTP ${r.status}).`
+          'Content API returned invalid JSON'
         );
       }
 
-      if (!j.success) {
+      if (!r.ok || !j.success) {
         throw new Error(
           j.error || 'Unable to load content'
         );
       }
 
-      const contentItems = arr(j.data);
-
-      console.log(
-        'Loaded content:',
-        contentItems
-      );
-
-      setItems(contentItems);
+      setItems(arr(j.data));
     } catch (e) {
-      console.error(
-        'Open batch error:',
-        e
-      );
-
       setErr(
         e.message || 'Unable to load content'
       );
@@ -305,9 +284,7 @@ export default function PrepMasterApp() {
     }
   }
 
-  /* =========================
-     OPEN FOLDER
-  ========================= */
+  /* ---------------- OPEN FOLDER ---------------- */
 
   async function openFolder(x) {
     if (!sel) {
@@ -325,57 +302,31 @@ export default function PrepMasterApp() {
     setLoading(true);
     setErr('');
 
-    const folderUrl =
-      `/api/content?content=${encodeURIComponent(
-        String(sel.id).trim()
-      )}&folder=${encodeURIComponent(
-        folderId
-      )}`;
-
     try {
-      const r = await fetch(folderUrl, {
-        cache: 'no-store',
-        headers: {
-          Accept: 'application/json',
-        },
-      });
+      const r = await fetch(
+        `/api/content?content=${encodeURIComponent(
+          String(sel.id).trim()
+        )}&folder=${encodeURIComponent(
+          folderId
+        )}`,
+        {
+          cache: 'no-store',
+        }
+      );
 
       const text = await r.text();
-
-      if (!r.ok) {
-        console.error(
-          'Folder API HTTP error:',
-          r.status,
-          r.statusText,
-          text
-        );
-
-        throw new Error(
-          `Folder API error: HTTP ${r.status} ${r.statusText}`
-        );
-      }
 
       let j;
 
       try {
         j = JSON.parse(text);
       } catch {
-        console.error(
-          'Folder API URL:',
-          folderUrl
-        );
-
-        console.error(
-          'Folder API response:',
-          text
-        );
-
         throw new Error(
-          `Folder API returned non-JSON response (HTTP ${r.status}).`
+          'Folder API returned invalid JSON'
         );
       }
 
-      if (!j.success) {
+      if (!r.ok || !j.success) {
         throw new Error(
           j.error || 'Unable to open folder'
         );
@@ -391,11 +342,6 @@ export default function PrepMasterApp() {
 
       setItems(arr(j.data));
     } catch (e) {
-      console.error(
-        'Open folder error:',
-        e
-      );
-
       setErr(
         e.message || 'Unable to open folder'
       );
@@ -404,13 +350,18 @@ export default function PrepMasterApp() {
     }
   }
 
-  /* =========================
-     PLAY LESSON
-  ========================= */
+  /* ---------------- PLAY VIDEO ---------------- */
 
   async function lesson(x) {
     if (!sel) {
       setErr('Batch is not selected');
+      return;
+    }
+
+    if (!isVideo(x)) {
+      setErr(
+        'This item is not a video.'
+      );
       return;
     }
 
@@ -424,57 +375,31 @@ export default function PrepMasterApp() {
     setLoading(true);
     setErr('');
 
-    const playbackUrl =
-      `/api/playback?content_id=${encodeURIComponent(
-        contentId
-      )}&course_id=${encodeURIComponent(
-        String(sel.id).trim()
-      )}`;
-
     try {
-      const r = await fetch(playbackUrl, {
-        cache: 'no-store',
-        headers: {
-          Accept: 'application/json',
-        },
-      });
+      const r = await fetch(
+        `/api/playback?content_id=${encodeURIComponent(
+          contentId
+        )}&course_id=${encodeURIComponent(
+          String(sel.id).trim()
+        )}`,
+        {
+          cache: 'no-store',
+        }
+      );
 
       const text = await r.text();
-
-      if (!r.ok) {
-        console.error(
-          'Playback API HTTP error:',
-          r.status,
-          r.statusText,
-          text
-        );
-
-        throw new Error(
-          `Playback API error: HTTP ${r.status} ${r.statusText}`
-        );
-      }
 
       let j;
 
       try {
         j = JSON.parse(text);
       } catch {
-        console.error(
-          'Playback API URL:',
-          playbackUrl
-        );
-
-        console.error(
-          'Playback API response:',
-          text
-        );
-
         throw new Error(
-          `Playback API returned non-JSON response (HTTP ${r.status}).`
+          'Playback API returned invalid JSON'
         );
       }
 
-      if (!j.success) {
+      if (!r.ok || !j.success) {
         throw new Error(
           j.error || 'Unable to load playback'
         );
@@ -489,13 +414,8 @@ export default function PrepMasterApp() {
         null;
 
       if (!playableUrl) {
-        console.error(
-          'Playback response:',
-          j
-        );
-
         throw new Error(
-          'No playable URL returned'
+          'No playable video URL returned'
         );
       }
 
@@ -504,11 +424,6 @@ export default function PrepMasterApp() {
         url: playableUrl,
       });
     } catch (e) {
-      console.error(
-        'Lesson error:',
-        e
-      );
-
       setErr(
         e.message || 'Unable to play lesson'
       );
@@ -517,9 +432,54 @@ export default function PrepMasterApp() {
     }
   }
 
-  /* =========================
-     BATCH CARD
-  ========================= */
+  /* ---------------- OPEN PDF ---------------- */
+
+  function openPdf(x) {
+    const data = x?.data || x;
+
+    const pdfUrl =
+      data?.file_url ||
+      data?.pdf_url ||
+      data?.download_url ||
+      null;
+
+    if (!pdfUrl) {
+      setErr(
+        'PDF URL is not available for this file.'
+      );
+      return;
+    }
+
+    setPdf({
+      title: title(x),
+      url: pdfUrl,
+    });
+  }
+
+  /* ---------------- OPEN FILE ---------------- */
+
+  function openFile(x) {
+    if (folder(x)) {
+      openFolder(x);
+      return;
+    }
+
+    if (isVideo(x)) {
+      lesson(x);
+      return;
+    }
+
+    if (isPdf(x)) {
+      openPdf(x);
+      return;
+    }
+
+    setErr(
+      'This content type is not supported yet.'
+    );
+  }
+
+  /* ---------------- BATCH CARD ---------------- */
 
   function card(b) {
     const enrolled = en.some(
@@ -541,9 +501,7 @@ export default function PrepMasterApp() {
 
         <div className="batchBody">
 
-          <h3>
-            {b.title}
-          </h3>
+          <h3>{b.title}</h3>
 
           <p>
             {b.description ||
@@ -554,9 +512,7 @@ export default function PrepMasterApp() {
             {b.price || 'FREE'}
 
             {b.mrp && (
-              <del>
-                {b.mrp}
-              </del>
+              <del>{b.mrp}</del>
             )}
           </div>
 
@@ -596,9 +552,7 @@ export default function PrepMasterApp() {
     );
   }
 
-  /* =========================
-     UI
-  ========================= */
+  /* ---------------- UI ---------------- */
 
   return (
     <div className="appShell">
@@ -625,7 +579,6 @@ export default function PrepMasterApp() {
           onClick={() =>
             setMenu(!menu)
           }
-          aria-label="Menu"
         >
           ⋮
         </button>
@@ -660,11 +613,9 @@ export default function PrepMasterApp() {
               if (s.telegramUrl) {
                 window.open(
                   s.telegramUrl,
-                  '_blank',
-                  'noopener,noreferrer'
+                  '_blank'
                 );
               }
-              setMenu(false);
             }}
           >
             ✈️ Join Telegram
@@ -675,11 +626,9 @@ export default function PrepMasterApp() {
               if (s.ownerContact) {
                 window.open(
                   s.ownerContact,
-                  '_blank',
-                  'noopener,noreferrer'
+                  '_blank'
                 );
               }
-              setMenu(false);
             }}
           >
             👤 Contact Owner
@@ -730,11 +679,9 @@ export default function PrepMasterApp() {
           <section className="section">
 
             <div className="sectionHead">
-
               <h2>
                 Latest Batches
               </h2>
-
             </div>
 
             {err && (
@@ -785,12 +732,6 @@ export default function PrepMasterApp() {
               setQ(e.target.value)
             }
           />
-
-          {err && (
-            <div className="errorBox">
-              {err}
-            </div>
-          )}
 
           <div className="batchGrid">
 
@@ -893,7 +834,6 @@ export default function PrepMasterApp() {
                 setSel(null);
                 setItems([]);
                 setStack([]);
-                setErr('');
 
               }}
             >
@@ -971,6 +911,12 @@ export default function PrepMasterApp() {
                   const isFolder =
                     folder(x);
 
+                  const video =
+                    isVideo(x);
+
+                  const pdfFile =
+                    isPdf(x);
+
                   return (
                     <button
                       className="contentRow"
@@ -978,16 +924,20 @@ export default function PrepMasterApp() {
                         id(x) || i
                       }
                       onClick={() =>
-                        isFolder
-                          ? openFolder(x)
-                          : lesson(x)
+                        openFile(x)
                       }
                     >
 
                       <span className="contentIcon">
+
                         {isFolder
                           ? '📁'
-                          : '▶️'}
+                          : video
+                          ? '▶️'
+                          : pdfFile
+                          ? '📄'
+                          : '📝'}
+
                       </span>
 
                       <span>
@@ -997,9 +947,15 @@ export default function PrepMasterApp() {
                         </b>
 
                         <small>
+
                           {isFolder
                             ? 'Open folder'
-                            : 'Open lesson'}
+                            : video
+                            ? 'Open video'
+                            : pdfFile
+                            ? 'Open PDF'
+                            : 'Open content'}
+
                         </small>
 
                       </span>
@@ -1021,6 +977,7 @@ export default function PrepMasterApp() {
       )}
 
       {/* ENROLL MODAL */}
+
       {enroll && sel && (
         <div
           className="modalShade"
@@ -1105,6 +1062,45 @@ export default function PrepMasterApp() {
               playsInline
               preload="metadata"
               src={player.url}
+            />
+
+          </div>
+
+        </div>
+      )}
+
+      {/* PDF VIEWER */}
+
+      {pdf && (
+        <div className="playerShade">
+
+          <div className="playerCard">
+
+            <div className="playerHead">
+
+              <b>
+                {pdf.title}
+              </b>
+
+              <button
+                onClick={() =>
+                  setPdf(null)
+                }
+              >
+                ✕
+              </button>
+
+            </div>
+
+            <iframe
+              title={pdf.title}
+              src={pdf.url}
+              style={{
+                width: '100%',
+                height: '75vh',
+                border: '0',
+                background: '#fff',
+              }}
             />
 
           </div>

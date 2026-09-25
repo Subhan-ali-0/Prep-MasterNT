@@ -1,6 +1,34 @@
-import {NextResponse} from 'next/server';import {cookies} from 'next/headers';import {getDb} from '../../../../../../lib/mongodb';import {validSession,COOKIE} import { ... } from '../../../../../lib/admin';
-import { ... } from '../../../../../lib/mongodb';
-async function ok(){return validSession((await cookies()).get(COOKIE)?.value)}
-export async function GET(){if(!await ok())return NextResponse.json({success:false,error:'Unauthorized'},{status:401});const db=await getDb();const a=await db.collection('batch_overrides').find({}).sort({updatedAt:-1}).toArray();return NextResponse.json({success:true,batches:a.map(x=>({...x,_id:String(x._id)}))})}
-export async function PUT(req){if(!await ok())return NextResponse.json({success:false,error:'Unauthorized'},{status:401});const b=await req.json();const id=String(b.id||'').trim();if(!id)return NextResponse.json({success:false,error:'Batch ID required'},{status:400});const doc={batchId:id,title:String(b.title??''),description:String(b.description??''),thumbnail:String(b.thumbnail??''),price:String(b.price??''),mrp:String(b.mrp??''),visible:b.visible!==false,tags:Array.isArray(b.tags)?b.tags.map(String):[],updatedAt:new Date()};const db=await getDb();await db.collection('batch_overrides').updateOne({batchId:id},{$set:doc,$setOnInsert:{createdAt:new Date()}},{upsert:true});return NextResponse.json({success:true,batch:doc})}
-export async function DELETE(req){if(!await ok())return NextResponse.json({success:false,error:'Unauthorized'},{status:401});const {id}=await req.json();const db=await getDb();await db.collection('batch_overrides').deleteOne({batchId:String(id||'')});return NextResponse.json({success:true})}
+import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { getDb } from '../../../../../lib/mongodb';
+import { validSession, COOKIE } from '../../../../../lib/admin';
+
+async function isAuthorized() {
+  const cookieStore = await cookies();
+  return validSession(cookieStore.get(COOKIE)?.value);
+}
+
+export async function GET() {
+  if (!(await isAuthorized())) {
+    return NextResponse.json(
+      { success: false, error: 'Unauthorized' },
+      { status: 401 }
+    );
+  }
+
+  const db = await getDb();
+
+  const batches = await db
+    .collection('batch_overrides')
+    .find({})
+    .sort({ updatedAt: -1 })
+    .toArray();
+
+  return NextResponse.json({
+    success: true,
+    batches: batches.map((item) => ({
+      ...item,
+      _id: String(item._id),
+    })),
+  });
+}

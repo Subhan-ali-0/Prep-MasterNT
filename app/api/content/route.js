@@ -19,18 +19,16 @@ export async function GET(req) {
       );
     }
 
-    const sourceUrl =
+    const url =
       `${SOURCE}?content=${encodeURIComponent(content)}` +
       `&folder=${encodeURIComponent(folder)}` +
       `&_t=${Date.now()}`;
 
-    const response = await fetch(sourceUrl, {
-      method: 'GET',
+    const response = await fetch(url, {
       cache: 'no-store',
       headers: {
-        Accept: 'application/json, text/plain, */*',
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140 Safari/537.36',
+        Accept: 'application/json',
+        'User-Agent': 'Mozilla/5.0',
       },
     });
 
@@ -44,9 +42,8 @@ export async function GET(req) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Source returned non-JSON response',
-          httpStatus: response.status,
-          preview: text.slice(0, 500),
+          error: 'Upstream returned invalid JSON',
+          status: response.status,
         },
         { status: 502 }
       );
@@ -56,8 +53,7 @@ export async function GET(req) {
       return NextResponse.json(
         {
           success: false,
-          error: `Upstream API returned HTTP ${response.status}`,
-          httpStatus: response.status,
+          error: `Upstream HTTP ${response.status}`,
           sourceData: data,
         },
         { status: 502 }
@@ -66,18 +62,18 @@ export async function GET(req) {
 
     return NextResponse.json({
       success: true,
-      data,
+      data: data.data || [],
+      responseCode: data.responseCode,
+      message: data.message,
     });
 
   } catch (error) {
     return NextResponse.json(
       {
         success: false,
-        error: error?.message || 'Unable to load folder',
+        error: error?.message || 'Unable to load content',
       },
       { status: 502 }
     );
   }
 }
-      
-        

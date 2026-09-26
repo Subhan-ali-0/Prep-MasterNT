@@ -3,131 +3,127 @@ import { NextResponse } from 'next/server';
 const SOURCE =
   'https://nexttoppers.asmultiverse.in/api/nig';
 
-async function fetchJSON(url) {
-  const response = await fetch(url, {
-    cache: 'no-store',
-    headers: {
-      Accept:
-        'application/json, text/plain, */*',
-      'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36',
-      Referer:
-        'https://nexttoppers.asmultiverse.in/',
-    },
-  });
+function getUrl(req) {
+  const q = new URL(req.url).searchParams;
 
-  const text = await response.text();
+  const content = q.get('content');
+  const folder = q.get('folder') ?? '0';
 
-  let data = null;
-
-  try {
-    data = JSON.parse(text);
-  } catch {
-    return {
-      ok: false,
-      status: response.status,
-      data: null,
-      text,
-    };
+  if (!content) {
+    return null;
   }
 
-  return {
-    ok: response.ok,
-    status: response.status,
-    data,
-    text,
-  };
+  return (
+    `${SOURCE}?content=${encodeURIComponent(content)}` +
+    `&folder=${encodeURIComponent(folder)}` +
+    `&_t=${Date.now()}`
+  );
+}
+
+function extractData(json) {
+  if (Array.isArray(json)) {
+    return json;
+  }
+
+  if (Array.isArray(json?.data)) {
+    return json.data;
+  }
+
+  if (Array.isArray(json?.data?.data)) {
+    return json.data.data;
+  }
+
+  if (Array.isArray(json?.data?.contents)) {
+    return json.data.contents;
+  }
+
+  if (Array.isArray(json?.contents)) {
+    return json.contents;
+  }
+
+  if (Array.isArray(json?.data?.items)) {
+    return json.data.items;
+  }
+
+  if (Array.isArray(json?.items)) {
+    return json.items;
+  }
+
+  return [];
 }
 
 export async function GET(req) {
   try {
-    const { searchParams } =
-      new URL(req.url);
+    const targetUrl = getUrl(req);
 
-    const content =
-      searchParams.get('content');
-
-    const folder =
-      searchParams.get('folder') || '0';
-
-    if (!content) {
+    if (!targetUrl) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Missing content ID',
+          error: 'content parameter is required.',
         },
         { status: 400 }
       );
     }
 
-    const url =
-      `${SOURCE}?content=${encodeURIComponent(
-        content
-      )}` +
-      `&folder=${encodeURIComponent(folder)}`;
+    const response = await fetch(targetUrl, {
+      method: 'GET',
+      cache: 'no-store',
+      headers: {
+        Accept: 'application/json, text/plain, */*',
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36',
+        Referer: 'https://nexttoppers.asmultiverse.in/',
+        Origin: 'https://nexttoppers.asmultiverse.in',
+      },
+    });
 
-    let result = await fetchJSON(url);
+    const text = await response.text();
 
-    if (!result.data) {
-      await new Promise((resolve) =>
-        setTimeout(resolve, 300)
-      );
+    let json;
 
-      result = await fetchJSON(url);
-    }
-
-    if (!result.data) {
+    try {
+      json = JSON.parse(text);
+    } catch {
       return NextResponse.json(
         {
           success: false,
-          error:
-            'Content source returned invalid JSON.',
-          status: result.status,
-          preview:
-            result.text?.slice(0, 500) || '',
+          error: 'Content source returned invalid JSON.',
+          status: response.status,
+          preview: text.slice(0, 500),
         },
         { status: 502 }
       );
     }
 
-    if (!result.ok) {
+    if (!response.ok) {
       return NextResponse.json(
         {
           success: false,
-          error:
-            `Content source returned HTTP ${result.status}`,
-          sourceData: result.data,
+          error: `Content source returned HTTP ${response.status}.`,
+          sourceData: json,
         },
         { status: 502 }
       );
     }
 
-    const contentData =
-      Array.isArray(result.data?.data)
-        ? result.data.data
-        : [];
+    const data = extractData(json);
 
     return NextResponse.json(
       {
         success: true,
-        data: contentData,
-        responseCode:
-          result.data?.responseCode ?? null,
-        message:
-          result.data?.message ?? null,
+        data,
+        count: data.length,
       },
       {
         headers: {
           'Cache-Control':
-            'public, s-maxage=60, stale-while-revalidate=300',
+            'no-store, no-cache, must-revalidate',
         },
       }
     );
   } catch (error) {
-    console.error(
-      'Content API error:',
-      error
-    );
+    console.error('Content API error:', error);
 
     return NextResponse.json(
       {

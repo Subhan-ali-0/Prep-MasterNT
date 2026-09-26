@@ -39,7 +39,11 @@ function getPrice(item) {
     item?.data?.price ??
     '';
 
-  if (price === '' || price === null || price === undefined) {
+  if (
+    price === '' ||
+    price === null ||
+    price === undefined
+  ) {
     return 'FREE';
   }
 
@@ -326,17 +330,22 @@ function getOptions(question) {
     });
   }
 
-  if (options && typeof options === 'object') {
-    return Object.entries(options).map(([key, value]) => ({
-      key,
-      text:
-        typeof value === 'string'
-          ? value
-          : value?.text ??
-            value?.value ??
-            value?.title ??
-            '',
-    }));
+  if (
+    options &&
+    typeof options === 'object'
+  ) {
+    return Object.entries(options).map(
+      ([key, value]) => ({
+        key,
+        text:
+          typeof value === 'string'
+            ? value
+            : value?.text ??
+              value?.value ??
+              value?.title ??
+              '',
+      })
+    );
   }
 
   return [];
@@ -346,39 +355,59 @@ export default function PrepMasterApp() {
   const [page, setPage] = useState('home');
 
   const [batches, setBatches] = useState([]);
-  const [loadingBatches, setLoadingBatches] = useState(true);
-  const [batchError, setBatchError] = useState('');
+  const [loadingBatches, setLoadingBatches] =
+    useState(true);
+  const [batchError, setBatchError] =
+    useState('');
 
   const [search, setSearch] = useState('');
 
   const [enrolled, setEnrolled] = useState([]);
-  const [selectedBatch, setSelectedBatch] = useState(null);
+  const [selectedBatch, setSelectedBatch] =
+    useState(null);
 
-  const [contentItems, setContentItems] = useState([]);
-  const [contentLoading, setContentLoading] = useState(false);
-  const [contentError, setContentError] = useState('');
+  const [contentItems, setContentItems] =
+    useState([]);
+  const [contentLoading, setContentLoading] =
+    useState(false);
+  const [contentError, setContentError] =
+    useState('');
 
-  const [currentFolder, setCurrentFolder] = useState(null);
-  const [folderStack, setFolderStack] = useState([]);
+  const [currentFolder, setCurrentFolder] =
+    useState(null);
+  const [folderStack, setFolderStack] =
+    useState([]);
 
   const [player, setPlayer] = useState(null);
-  const [playerLoading, setPlayerLoading] = useState(false);
-  const [playerError, setPlayerError] = useState('');
+  const [playerLoading, setPlayerLoading] =
+    useState(false);
+  const [playerError, setPlayerError] =
+    useState('');
 
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [enrollPopup, setEnrollPopup] = useState(null);
+  const [menuOpen, setMenuOpen] =
+    useState(false);
+  const [enrollPopup, setEnrollPopup] =
+    useState(null);
 
-  const [testLoading, setTestLoading] = useState(false);
-  const [testError, setTestError] = useState('');
-  const [activeTest, setActiveTest] = useState(null);
-  const [testQuestions, setTestQuestions] = useState([]);
-  const [testAnswers, setTestAnswers] = useState({});
-  const [testResult, setTestResult] = useState(null);
+  const [testLoading, setTestLoading] =
+    useState(false);
+  const [testError, setTestError] =
+    useState('');
+  const [activeTest, setActiveTest] =
+    useState(null);
+  const [testQuestions, setTestQuestions] =
+    useState([]);
+  const [testAnswers, setTestAnswers] =
+    useState({});
+  const [testResult, setTestResult] =
+    useState(null);
 
   useEffect(() => {
     try {
       const saved = JSON.parse(
-        localStorage.getItem('pm_enrolled') || '[]'
+        localStorage.getItem(
+          'pm_enrolled'
+        ) || '[]'
       );
 
       if (Array.isArray(saved)) {
@@ -407,15 +436,22 @@ export default function PrepMasterApp() {
     setBatchError('');
 
     try {
-      const response = await fetch('/api/batches', {
-        cache: 'no-store',
-      });
+      const response = await fetch(
+        '/api/batches',
+        {
+          cache: 'no-store',
+        }
+      );
 
       const json = await response.json();
 
-      if (!response.ok || !json?.success) {
+      if (
+        !response.ok ||
+        !json?.success
+      ) {
         throw new Error(
-          json?.error || 'Unable to load batches.'
+          json?.error ||
+            'Unable to load batches.'
         );
       }
 
@@ -426,7 +462,8 @@ export default function PrepMasterApp() {
       );
     } catch (error) {
       setBatchError(
-        error?.message || 'Unable to load batches.'
+        error?.message ||
+          'Unable to load batches.'
       );
     } finally {
       setLoadingBatches(false);
@@ -437,7 +474,9 @@ export default function PrepMasterApp() {
     const id = getId(batch);
 
     return enrolled.some(
-      (item) => String(getId(item)) === String(id)
+      (item) =>
+        String(getId(item)) ===
+        String(id)
     );
   }
 
@@ -445,7 +484,10 @@ export default function PrepMasterApp() {
     if (!batch) return;
 
     if (!isEnrolled(batch)) {
-      setEnrolled((prev) => [...prev, batch]);
+      setEnrolled((prev) => [
+        ...prev,
+        batch,
+      ]);
     }
 
     setEnrollPopup(batch);
@@ -461,10 +503,16 @@ export default function PrepMasterApp() {
     setPlayerError('');
     setPage('batch');
 
-    loadContent(getId(batch), '0');
+    loadContent(
+      getId(batch),
+      '0'
+    );
   }
 
-  async function loadContent(courseId, folderId = '0') {
+  async function loadContent(
+    courseId,
+    folderId = '0'
+  ) {
     if (!courseId) return;
 
     setContentLoading(true);
@@ -474,7 +522,9 @@ export default function PrepMasterApp() {
       const response = await fetch(
         `/api/content?content=${encodeURIComponent(
           courseId
-        )}&folder=${encodeURIComponent(folderId)}`,
+        )}&folder=${encodeURIComponent(
+          folderId
+        )}`,
         {
           cache: 'no-store',
         }
@@ -482,9 +532,13 @@ export default function PrepMasterApp() {
 
       const json = await response.json();
 
-      if (!response.ok || !json?.success) {
+      if (
+        !response.ok ||
+        !json?.success
+      ) {
         throw new Error(
-          json?.error || 'Unable to load content.'
+          json?.error ||
+            'Unable to load content.'
         );
       }
 
@@ -536,19 +590,26 @@ export default function PrepMasterApp() {
       return;
     }
 
-    const nextStack = [...folderStack];
+    const nextStack = [
+      ...folderStack,
+    ];
+
     nextStack.pop();
 
     setFolderStack(nextStack);
 
     const parentId =
       nextStack.length > 0
-        ? nextStack[nextStack.length - 1].id
+        ? nextStack[
+            nextStack.length - 1
+          ].id
         : '0';
 
     setCurrentFolder(
       nextStack.length > 0
-        ? nextStack[nextStack.length - 1]
+        ? nextStack[
+            nextStack.length - 1
+          ]
         : null
     );
 
@@ -558,16 +619,30 @@ export default function PrepMasterApp() {
     );
   }
 
+  /*
+   * VIDEO PLAYBACK
+   *
+   * 1. Agar content API already .m3u8/.mpd URL
+   *    deta hai -> direct ShakaPlayer.
+   *
+   * 2. Agar direct URL nahi hai -> /api/playback
+   *    se authorized playback URL maangta hai.
+   */
   async function openVideo(item) {
     if (!selectedBatch) return;
 
-    const directUrl = String(getContentUrl(item));
+    const directUrl = String(
+      getContentUrl(item)
+    ).trim();
 
     setPlayerLoading(true);
     setPlayerError('');
     setPlayer(null);
 
     try {
+      /*
+       * YouTube video
+       */
       if (isYouTubeUrl(directUrl)) {
         setPlayer({
           type: 'youtube',
@@ -578,7 +653,12 @@ export default function PrepMasterApp() {
         return;
       }
 
-      if (isHlsOrDashUrl(directUrl)) {
+      /*
+       * Direct HLS/DASH video
+       */
+      if (
+        isHlsOrDashUrl(directUrl)
+      ) {
         setPlayer({
           type: 'video',
           title: getTitle(item),
@@ -588,26 +668,63 @@ export default function PrepMasterApp() {
         return;
       }
 
+      /*
+       * Direct MP4/WebM
+       */
+      if (
+        /\.(mp4|webm)(\?|$)/i.test(
+          directUrl
+        )
+      ) {
+        setPlayer({
+          type: 'video',
+          title: getTitle(item),
+          url: directUrl,
+        });
+
+        return;
+      }
+
+      /*
+       * No direct URL.
+       * Ask our own backend for the authorized
+       * playback URL.
+       */
       const contentId = getId(item);
 
       if (!contentId) {
-        throw new Error('Video ID unavailable.');
+        throw new Error(
+          'Video ID unavailable.'
+        );
+      }
+
+      const courseId =
+        getId(selectedBatch);
+
+      if (!courseId) {
+        throw new Error(
+          'Course ID unavailable.'
+        );
       }
 
       const response = await fetch(
         `/api/playback?content_id=${encodeURIComponent(
           contentId
         )}&course_id=${encodeURIComponent(
-          getId(selectedBatch)
+          courseId
         )}`,
         {
           cache: 'no-store',
         }
       );
 
-      const json = await response.json();
+      const json =
+        await response.json();
 
-      if (!response.ok || !json?.success) {
+      if (
+        !response.ok ||
+        !json?.success
+      ) {
         throw new Error(
           json?.error ||
             'Unable to load video playback.'
@@ -617,8 +734,11 @@ export default function PrepMasterApp() {
       const playableUrl =
         json?.url ||
         json?.data?.url ||
-        json?.decryptedData?.file_url ||
-        json?.data?.decryptedData?.file_url ||
+        json?.decryptedData
+          ?.file_url ||
+        json?.data
+          ?.decryptedData
+          ?.file_url ||
         '';
 
       if (!playableUrl) {
@@ -627,7 +747,9 @@ export default function PrepMasterApp() {
         );
       }
 
-      if (isYouTubeUrl(playableUrl)) {
+      if (
+        isYouTubeUrl(playableUrl)
+      ) {
         setPlayer({
           type: 'youtube',
           title: getTitle(item),
@@ -641,6 +763,11 @@ export default function PrepMasterApp() {
         });
       }
     } catch (error) {
+      console.error(
+        'Video playback error:',
+        error
+      );
+
       setPlayerError(
         error?.message ||
           'Unable to load video.'
@@ -670,7 +797,8 @@ export default function PrepMasterApp() {
   }
 
   async function openTest(item) {
-    const testId = extractTestId(item);
+    const testId =
+      extractTestId(item);
 
     if (!testId) {
       alert('Test ID unavailable.');
@@ -699,9 +827,13 @@ export default function PrepMasterApp() {
         }
       );
 
-      const json = await response.json();
+      const json =
+        await response.json();
 
-      if (!response.ok || !json?.success) {
+      if (
+        !response.ok ||
+        !json?.success
+      ) {
         throw new Error(
           json?.error ||
             `Test source returned HTTP ${response.status}`
@@ -709,9 +841,13 @@ export default function PrepMasterApp() {
       }
 
       const questions =
-        getTestQuestions(json?.data);
+        getTestQuestions(
+          json?.data
+        );
 
-      setTestQuestions(questions);
+      setTestQuestions(
+        questions
+      );
 
       if (!questions.length) {
         setTestError(
@@ -744,9 +880,13 @@ export default function PrepMasterApp() {
         }
       );
 
-      const json = await response.json();
+      const json =
+        await response.json();
 
-      if (!response.ok || !json?.success) {
+      if (
+        !response.ok ||
+        !json?.success
+      ) {
         throw new Error(
           json?.error ||
             `Test source returned HTTP ${response.status}`
@@ -754,9 +894,13 @@ export default function PrepMasterApp() {
       }
 
       const questions =
-        getTestQuestions(json?.data);
+        getTestQuestions(
+          json?.data
+        );
 
-      setTestQuestions(questions);
+      setTestQuestions(
+        questions
+      );
       setTestAnswers({});
       setTestResult(null);
 
@@ -776,33 +920,42 @@ export default function PrepMasterApp() {
   }
 
   function submitLocalTest() {
-    if (!testQuestions.length) return;
+    if (!testQuestions.length)
+      return;
 
     let correct = 0;
 
-    testQuestions.forEach((question, index) => {
-      const selected = testAnswers[index];
+    testQuestions.forEach(
+      (question, index) => {
+        const selected =
+          testAnswers[index];
 
-      const answer =
-        question?.correct_answer ??
-        question?.correctAnswer ??
-        question?.answer ??
-        question?.data?.correct_answer ??
-        question?.data?.correctAnswer;
+        const answer =
+          question?.correct_answer ??
+          question?.correctAnswer ??
+          question?.answer ??
+          question?.data
+            ?.correct_answer ??
+          question?.data
+            ?.correctAnswer;
 
-      if (
-        selected != null &&
-        answer != null &&
-        String(selected).toLowerCase() ===
-          String(answer).toLowerCase()
-      ) {
-        correct += 1;
+        if (
+          selected != null &&
+          answer != null &&
+          String(selected)
+            .toLowerCase() ===
+            String(answer)
+              .toLowerCase()
+        ) {
+          correct += 1;
+        }
       }
-    });
+    );
 
     setTestResult({
       correct,
-      total: testQuestions.length,
+      total:
+        testQuestions.length,
     });
   }
 
@@ -819,31 +972,40 @@ export default function PrepMasterApp() {
     setTestResult(null);
   }
 
-  const filteredBatches = useMemo(() => {
-    const q = search.trim().toLowerCase();
-
-    if (!q) return batches;
-
-    return batches.filter((batch) => {
-      const text = [
-        batch?.title,
-        batch?.description,
-      ]
-        .filter(Boolean)
-        .join(' ')
+  const filteredBatches =
+    useMemo(() => {
+      const q = search
+        .trim()
         .toLowerCase();
 
-      return text.includes(q);
-    });
-  }, [batches, search]);
+      if (!q) return batches;
 
-  const enrolledBatches = useMemo(
-    () => enrolled,
-    [enrolled]
-  );
+      return batches.filter(
+        (batch) => {
+          const text = [
+            batch?.title,
+            batch?.description,
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
 
-  function renderBatchCard(batch) {
-    const enrolledNow = isEnrolled(batch);
+          return text.includes(q);
+        }
+      );
+    }, [batches, search]);
+
+  const enrolledBatches =
+    useMemo(
+      () => enrolled,
+      [enrolled]
+    );
+
+  function renderBatchCard(
+    batch
+  ) {
+    const enrolledNow =
+      isEnrolled(batch);
 
     return (
       <div
@@ -853,7 +1015,9 @@ export default function PrepMasterApp() {
         {getBatchImage(batch) ? (
           <img
             className="pm-card-image"
-            src={getBatchImage(batch)}
+            src={getBatchImage(
+              batch
+            )}
             alt={getTitle(batch)}
             loading="lazy"
             decoding="async"
@@ -865,22 +1029,35 @@ export default function PrepMasterApp() {
         )}
 
         <div className="pm-card-body">
-          <h3>{getTitle(batch)}</h3>
+          <h3>
+            {getTitle(batch)}
+          </h3>
 
-          {getDescription(batch) && (
-            <p>{getDescription(batch)}</p>
+          {getDescription(
+            batch
+          ) && (
+            <p>
+              {getDescription(
+                batch
+              )}
+            </p>
           )}
 
           <div className="pm-price">
-            {getPrice(batch) === 'FREE'
+            {getPrice(batch) ===
+            'FREE'
               ? 'FREE'
-              : `₹${getPrice(batch)}`}
+              : `₹${getPrice(
+                  batch
+                )}`}
           </div>
 
           <div className="pm-card-actions">
             <button
               className="pm-secondary"
-              onClick={() => openBatch(batch)}
+              onClick={() =>
+                openBatch(batch)
+              }
             >
               Study
             </button>
@@ -889,8 +1066,12 @@ export default function PrepMasterApp() {
               className="pm-primary"
               onClick={() =>
                 enrolledNow
-                  ? openBatch(batch)
-                  : enrollBatch(batch)
+                  ? openBatch(
+                      batch
+                    )
+                  : enrollBatch(
+                      batch
+                    )
               }
             >
               {enrolledNow
@@ -903,23 +1084,36 @@ export default function PrepMasterApp() {
     );
   }
 
-  function renderContentItem(item, index) {
-    const folder = isFolder(item);
-    const pdf = isPdf(item);
-    const video = !pdf && isVideo(item);
-    const test = isTest(item);
+  function renderContentItem(
+    item,
+    index
+  ) {
+    const folder =
+      isFolder(item);
+    const pdf =
+      isPdf(item);
+    const video =
+      !pdf && isVideo(item);
+    const test =
+      isTest(item);
 
     let icon = '📄';
 
-    if (folder) icon = '📁';
-    else if (video) icon = '🎥';
-    else if (pdf) icon = '📄';
-    else if (test) icon = '📝';
+    if (folder)
+      icon = '📁';
+    else if (video)
+      icon = '🎥';
+    else if (pdf)
+      icon = '📄';
+    else if (test)
+      icon = '📝';
 
     return (
       <div
         className="pm-content-item"
-        key={`${getId(item)}-${index}`}
+        key={`${getId(
+          item
+        )}-${index}`}
         onClick={() => {
           if (folder) {
             openFolder(item);
@@ -977,7 +1171,8 @@ export default function PrepMasterApp() {
             <h1>Prep Master</h1>
 
             <p>
-              Learn smarter. Prepare better.
+              Learn smarter.
+              Prepare better.
             </p>
           </div>
         </div>
@@ -988,7 +1183,9 @@ export default function PrepMasterApp() {
           <input
             value={search}
             onChange={(e) =>
-              setSearch(e.target.value)
+              setSearch(
+                e.target.value
+              )
             }
             placeholder="Search batches..."
           />
@@ -997,7 +1194,11 @@ export default function PrepMasterApp() {
         <div className="pm-section-head">
           <h2>Batches</h2>
 
-          <button onClick={loadBatches}>
+          <button
+            onClick={
+              loadBatches
+            }
+          >
             ↻
           </button>
         </div>
@@ -1010,7 +1211,8 @@ export default function PrepMasterApp() {
           <div className="pm-error">
             {batchError}
           </div>
-        ) : filteredBatches.length === 0 ? (
+        ) : filteredBatches.length ===
+          0 ? (
           <div className="pm-state">
             No batches found.
           </div>
@@ -1029,18 +1231,27 @@ export default function PrepMasterApp() {
     return (
       <>
         <div className="pm-page-title">
-          <h1>My Batches</h1>
-          <p>Your enrolled batches</p>
+          <h1>
+            My Batches
+          </h1>
+
+          <p>
+            Your enrolled batches
+          </p>
         </div>
 
-        {enrolledBatches.length === 0 ? (
+        {enrolledBatches.length ===
+        0 ? (
           <div className="pm-empty">
             <div>📚</div>
 
-            <h3>No enrolled batches</h3>
+            <h3>
+              No enrolled batches
+            </h3>
 
             <p>
-              Enroll in a batch to see it here.
+              Enroll in a batch
+              to see it here.
             </p>
 
             <button
@@ -1063,12 +1274,20 @@ export default function PrepMasterApp() {
     );
   }
 
-  function ComingSoon({ title, icon }) {
+  function ComingSoon({
+    title,
+    icon,
+  }) {
     return (
       <div className="pm-empty">
         <div>{icon}</div>
+
         <h3>{title}</h3>
-        <p>This feature is coming soon.</p>
+
+        <p>
+          This feature is
+          coming soon.
+        </p>
       </div>
     );
   }
@@ -1079,15 +1298,21 @@ export default function PrepMasterApp() {
         <div className="pm-page-title">
           <button
             className="pm-back-button"
-            onClick={goBackFolder}
+            onClick={
+              goBackFolder
+            }
           >
             ← Back
           </button>
 
           <h1>
             {currentFolder
-              ? getTitle(currentFolder)
-              : getTitle(selectedBatch)}
+              ? getTitle(
+                  currentFolder
+                )
+              : getTitle(
+                  selectedBatch
+                )}
           </h1>
 
           <p>
@@ -1105,7 +1330,8 @@ export default function PrepMasterApp() {
           <div className="pm-error">
             {contentError}
           </div>
-        ) : contentItems.length === 0 ? (
+        ) : contentItems.length ===
+          0 ? (
           <div className="pm-state">
             No content found.
           </div>
@@ -1121,26 +1347,40 @@ export default function PrepMasterApp() {
   }
 
   function PlayerOverlay() {
-    if (!player) return null;
+    if (!player)
+      return null;
 
-    if (player.type === 'pdf') {
+    if (
+      player.type === 'pdf'
+    ) {
       return (
         <div className="pm-player-overlay">
           <PdfPlayer
             url={player.url}
-            title={player.title}
-            onClose={closePlayer}
+            title={
+              player.title
+            }
+            onClose={
+              closePlayer
+            }
           />
         </div>
       );
     }
 
-    if (player.type === 'youtube') {
+    if (
+      player.type ===
+      'youtube'
+    ) {
       return (
         <div className="pm-player-overlay">
           <div className="pm-video-player">
             <div className="pm-video-header">
-              <button onClick={closePlayer}>
+              <button
+                onClick={
+                  closePlayer
+                }
+              >
                 ←
               </button>
 
@@ -1152,7 +1392,9 @@ export default function PrepMasterApp() {
             <div className="pm-youtube-wrap">
               <iframe
                 src={player.url}
-                title={player.title}
+                title={
+                  player.title
+                }
                 className="pm-youtube-player"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 allowFullScreen
@@ -1163,13 +1405,20 @@ export default function PrepMasterApp() {
       );
     }
 
-    if (player.type === 'video') {
+    if (
+      player.type ===
+      'video'
+    ) {
       return (
         <div className="pm-player-overlay">
           <ShakaPlayer
             url={player.url}
-            title={player.title}
-            onClose={closePlayer}
+            title={
+              player.title
+            }
+            onClose={
+              closePlayer
+            }
           />
         </div>
       );
@@ -1179,18 +1428,28 @@ export default function PrepMasterApp() {
   }
 
   function TestOverlay() {
-    if (!activeTest) return null;
+    if (!activeTest)
+      return null;
 
     return (
       <div className="pm-test-overlay">
         <div className="pm-test-card">
           <div className="pm-test-header">
-            <button onClick={closeTest}>
+            <button
+              onClick={
+                closeTest
+              }
+            >
               ←
             </button>
 
             <div>
-              <h2>{activeTest.title}</h2>
+              <h2>
+                {
+                  activeTest.title
+                }
+              </h2>
+
               <p>Test</p>
             </div>
           </div>
@@ -1205,28 +1464,39 @@ export default function PrepMasterApp() {
 
               <button
                 className="pm-primary pm-small-button"
-                onClick={startTest}
-                style={{ marginTop: 12 }}
+                onClick={
+                  startTest
+                }
+                style={{
+                  marginTop: 12,
+                }}
               >
                 Try Again
               </button>
             </div>
-          ) : testQuestions.length === 0 ? (
+          ) : testQuestions.length ===
+            0 ? (
             <div className="pm-empty">
               <div>📝</div>
 
               <h3>
-                Test questions not available
+                Test questions
+                not available
               </h3>
 
               <p>
-                Instructions load hui hain, lekin
-                questions response me nahi mile.
+                Instructions
+                load hui hain,
+                lekin questions
+                response me nahi
+                mile.
               </p>
 
               <button
                 className="pm-primary pm-small-button"
-                onClick={startTest}
+                onClick={
+                  startTest
+                }
               >
                 Load Test Data
               </button>
@@ -1235,9 +1505,14 @@ export default function PrepMasterApp() {
             <>
               <div className="pm-test-questions">
                 {testQuestions.map(
-                  (question, index) => {
+                  (
+                    question,
+                    index
+                  ) => {
                     const options =
-                      getOptions(question);
+                      getOptions(
+                        question
+                      );
 
                     return (
                       <div
@@ -1249,7 +1524,9 @@ export default function PrepMasterApp() {
                         }
                       >
                         <div className="pm-question-title">
-                          {index + 1}.{' '}
+                          {index +
+                            1}
+                          .{' '}
                           {getQuestionText(
                             question
                           )}
@@ -1257,15 +1534,21 @@ export default function PrepMasterApp() {
 
                         <div className="pm-options">
                           {options.map(
-                            (option) => (
+                            (
+                              option
+                            ) => (
                               <label
                                 className="pm-option"
-                                key={option.key}
+                                key={
+                                  option.key
+                                }
                               >
                                 <input
                                   type="radio"
                                   name={`question-${index}`}
-                                  value={option.key}
+                                  value={
+                                    option.key
+                                  }
                                   checked={
                                     testAnswers[
                                       index
@@ -1274,7 +1557,9 @@ export default function PrepMasterApp() {
                                   }
                                   onChange={() =>
                                     setTestAnswers(
-                                      (prev) => ({
+                                      (
+                                        prev
+                                      ) => ({
                                         ...prev,
                                         [index]:
                                           option.key,
@@ -1284,8 +1569,13 @@ export default function PrepMasterApp() {
                                 />
 
                                 <span>
-                                  {option.key}.{' '}
-                                  {option.text}
+                                  {
+                                    option.key
+                                  }
+                                  .{' '}
+                                  {
+                                    option.text
+                                  }
                                 </span>
                               </label>
                             )
@@ -1300,26 +1590,38 @@ export default function PrepMasterApp() {
               {!testResult ? (
                 <button
                   className="pm-primary pm-test-submit"
-                  onClick={submitLocalTest}
+                  onClick={
+                    submitLocalTest
+                  }
                 >
                   Submit Test
                 </button>
               ) : (
                 <div className="pm-test-result">
-                  <h3>Test Completed 🎉</h3>
+                  <h3>
+                    Test Completed
+                    🎉
+                  </h3>
 
                   <p>
                     Score:{' '}
                     <strong>
-                      {testResult.correct}
+                      {
+                        testResult.correct
+                      }
                     </strong>{' '}
-                    / {testResult.total}
+                    /{' '}
+                    {
+                      testResult.total
+                    }
                   </p>
 
                   <button
                     className="pm-secondary"
                     onClick={() =>
-                      setTestResult(null)
+                      setTestResult(
+                        null
+                      )
                     }
                   >
                     Retake
@@ -1334,12 +1636,15 @@ export default function PrepMasterApp() {
   }
 
   function Menu() {
-    if (!menuOpen) return null;
+    if (!menuOpen)
+      return null;
 
     return (
       <div
         className="pm-menu-backdrop"
-        onClick={() => setMenuOpen(false)}
+        onClick={() =>
+          setMenuOpen(false)
+        }
       >
         <div
           className="pm-menu"
@@ -1358,7 +1663,9 @@ export default function PrepMasterApp() {
 
           <button
             onClick={() => {
-              setPage('mybatches');
+              setPage(
+                'mybatches'
+              );
               setMenuOpen(false);
             }}
           >
@@ -1367,7 +1674,9 @@ export default function PrepMasterApp() {
 
           <button
             onClick={() => {
-              setPage('community');
+              setPage(
+                'community'
+              );
               setMenuOpen(false);
             }}
           >
@@ -1425,30 +1734,40 @@ export default function PrepMasterApp() {
       <nav className="pm-bottom-nav">
         <button
           className={
-            page === 'community'
+            page ===
+            'community'
               ? 'active'
               : ''
           }
           onClick={() =>
-            setPage('community')
+            setPage(
+              'community'
+            )
           }
         >
           <span>💬</span>
-          <small>Community</small>
+          <small>
+            Community
+          </small>
         </button>
 
         <button
           className={
-            page === 'mybatches'
+            page ===
+            'mybatches'
               ? 'active'
               : ''
           }
           onClick={() =>
-            setPage('mybatches')
+            setPage(
+              'mybatches'
+            )
           }
         >
           <span>📖</span>
-          <small>My Batches</small>
+          <small>
+            My Batches
+          </small>
         </button>
 
         <button
@@ -1463,17 +1782,25 @@ export default function PrepMasterApp() {
           }
         >
           <span>📚</span>
-          <small>Batches</small>
+          <small>
+            Batches
+          </small>
         </button>
 
         <button
           className={
-            page === 'ai' ? 'active' : ''
+            page === 'ai'
+              ? 'active'
+              : ''
           }
-          onClick={() => setPage('ai')}
+          onClick={() =>
+            setPage('ai')
+          }
         >
           <span>🤖</span>
-          <small>AI Doubts</small>
+          <small>
+            AI Doubts
+          </small>
         </button>
       </nav>
     );
@@ -1482,12 +1809,24 @@ export default function PrepMasterApp() {
   let mainContent = null;
 
   if (page === 'home') {
-    mainContent = <HomePage />;
-  } else if (page === 'mybatches') {
-    mainContent = <MyBatchesPage />;
-  } else if (page === 'batch') {
-    mainContent = <BatchPage />;
-  } else if (page === 'community') {
+    mainContent = (
+      <HomePage />
+    );
+  } else if (
+    page === 'mybatches'
+  ) {
+    mainContent = (
+      <MyBatchesPage />
+    );
+  } else if (
+    page === 'batch'
+  ) {
+    mainContent = (
+      <BatchPage />
+    );
+  } else if (
+    page === 'community'
+  ) {
     mainContent = (
       <ComingSoon
         title="Community"
@@ -1501,7 +1840,9 @@ export default function PrepMasterApp() {
         icon="🤖"
       />
     );
-  } else if (page === 'admin') {
+  } else if (
+    page === 'admin'
+  ) {
     mainContent = (
       <ComingSoon
         title="Admin Panel"
@@ -1520,13 +1861,17 @@ export default function PrepMasterApp() {
             className="pm-logo"
           />
 
-          <span>Prep Master</span>
+          <span>
+            Prep Master
+          </span>
         </div>
 
         <button
           className="pm-menu-button"
           onClick={() =>
-            setMenuOpen((value) => !value)
+            setMenuOpen(
+              (value) => !value
+            )
           }
           aria-label="Open menu"
         >
@@ -1559,20 +1904,29 @@ export default function PrepMasterApp() {
               🎉
             </div>
 
-            <h2>Congratulations 🎉</h2>
+            <h2>
+              Congratulations
+              🎉
+            </h2>
 
             <p>
-              You have successfully enrolled
-              in{' '}
+              You have
+              successfully
+              enrolled in{' '}
               <strong>
-                {getTitle(enrollPopup)}
-              </strong>.
+                {getTitle(
+                  enrollPopup
+                )}
+              </strong>
+              .
             </p>
 
             <button
               className="pm-primary"
               onClick={() =>
-                setEnrollPopup(null)
+                setEnrollPopup(
+                  null
+                )
               }
             >
               Continue
@@ -1588,38 +1942,48 @@ export default function PrepMasterApp() {
               🎥
             </div>
 
-            <h3>Loading...</h3>
+            <h3>
+              Loading...
+            </h3>
 
             <p>
-              Please wait while the content
-              loads.
+              Please wait while
+              the content loads.
             </p>
           </div>
         </div>
       )}
 
-      {playerError && !player && (
-        <div className="pm-popup-backdrop">
-          <div className="pm-popup">
-            <div className="pm-popup-icon">
-              ⚠️
+      {playerError &&
+        !player && (
+          <div className="pm-popup-backdrop">
+            <div className="pm-popup">
+              <div className="pm-popup-icon">
+                ⚠️
+              </div>
+
+              <h3>
+                Unable to open
+                content
+              </h3>
+
+              <p>
+                {playerError}
+              </p>
+
+              <button
+                className="pm-primary"
+                onClick={() =>
+                  setPlayerError(
+                    ''
+                  )
+                }
+              >
+                Close
+              </button>
             </div>
-
-            <h3>Unable to open content</h3>
-
-            <p>{playerError}</p>
-
-            <button
-              className="pm-primary"
-              onClick={() =>
-                setPlayerError('')
-              }
-            >
-              Close
-            </button>
           </div>
-        </div>
-      )}
+        )}
 
       <PlayerOverlay />
 

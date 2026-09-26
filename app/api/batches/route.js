@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-const SOURCE = 'https://nt.studybeepro.site/batches.json';
+import batchesData from '../../../public/batches.json';
 
 function normalize(x) {
   if (!x || typeof x !== 'object') return null;
@@ -35,11 +35,7 @@ function extract(j) {
   }
 
   if (j && typeof j === 'object') {
-    for (const key of [
-      'new',
-      'courses',
-      'batches',
-    ]) {
+    for (const key of ['new', 'courses', 'batches']) {
       if (Array.isArray(j[key])) {
         items.push(...j[key]);
       }
@@ -73,34 +69,7 @@ function extract(j) {
 
 export async function GET() {
   try {
-    const response = await fetch(SOURCE, {
-      cache: 'no-store',
-      headers: {
-        Accept:
-          'application/json, text/plain, */*',
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36',
-        Referer:
-          'https://nt.studybeepro.site/',
-      },
-    });
-
-    if (!response.ok) {
-      const text = await response.text().catch(() => '');
-
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Batch source returned ${response.status}`,
-          details: text.slice(0, 500),
-        },
-        { status: 502 }
-      );
-    }
-
-    const data = await response.json();
-
-    const batches = extract(data);
+    const batches = extract(batchesData);
 
     return NextResponse.json(
       {
@@ -115,6 +84,8 @@ export async function GET() {
       }
     );
   } catch (error) {
+    console.error('Batches API error:', error);
+
     return NextResponse.json(
       {
         success: false,
@@ -122,7 +93,7 @@ export async function GET() {
           error?.message ||
           'Unable to load batches.',
       },
-      { status: 502 }
+      { status: 500 }
     );
   }
 }

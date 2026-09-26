@@ -22,9 +22,7 @@ export default function ShakaPlayer({
         setError('');
 
         if (!url) {
-          throw new Error(
-            'Video URL available nahi hai.'
-          );
+          throw new Error('Video URL available nahi hai.');
         }
 
         const shakaModule = await import(
@@ -32,16 +30,13 @@ export default function ShakaPlayer({
         );
 
         const shaka =
-          shakaModule.default ??
-          shakaModule;
+          shakaModule.default ?? shakaModule;
 
         if (cancelled) return;
 
         shaka.polyfill();
 
-        if (
-          !shaka.Player.isBrowserSupported()
-        ) {
+        if (!shaka.Player.isBrowserSupported()) {
           throw new Error(
             'Shaka Player is browser me supported nahi hai.'
           );
@@ -53,33 +48,26 @@ export default function ShakaPlayer({
           );
         }
 
-        const player =
-          new shaka.Player(
-            videoRef.current
-          );
+        const player = new shaka.Player(
+          videoRef.current
+        );
 
         playerRef.current = player;
 
         player.addEventListener(
           'error',
           (event) => {
-            const detail = event?.detail;
-
             console.error(
               'Shaka Player error:',
-              detail
+              event?.detail
             );
 
-            const code =
-              detail?.code ??
-              'unknown';
-
-            const message =
-              detail?.message ||
-              `Video playback error (${code})`;
-
             if (!cancelled) {
-              setError(message);
+              setError(
+                event?.detail?.message ||
+                  `Video playback error (${event?.detail?.code ?? 'unknown'})`
+              );
+
               setLoading(false);
             }
           }
@@ -112,18 +100,10 @@ export default function ShakaPlayer({
       cancelled = true;
 
       const player = playerRef.current;
-
       playerRef.current = null;
 
       if (player) {
-        player
-          .destroy()
-          .catch((err) => {
-            console.error(
-              'Shaka destroy error:',
-              err
-            );
-          });
+        player.destroy().catch(console.error);
       }
     };
   }, [url]);
@@ -148,37 +128,17 @@ export default function ShakaPlayer({
         {loading && (
           <div className="pm-video-loading">
             <div>🎥</div>
-            <span>
-              Loading video...
-            </span>
+            <span>Loading video...</span>
           </div>
         )}
 
         {error && (
           <div className="pm-video-error">
-            <div className="pm-video-error-icon">
-              ⚠️
-            </div>
+            <div>⚠️</div>
 
-            <h3>
-              Unable to play video
-            </h3>
+            <h3>Unable to play video</h3>
 
             <p>{error}</p>
-
-            <button
-              type="button"
-              className="pm-secondary"
-              onClick={() =>
-                window.open(
-                  url,
-                  '_blank',
-                  'noopener,noreferrer'
-                )
-              }
-            >
-              Open Video
-            </button>
           </div>
         )}
 

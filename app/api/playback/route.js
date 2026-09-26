@@ -1,73 +1,68 @@
 import { NextResponse } from 'next/server';
 
-const SOURCE =
-  'https://nt.studybeepro.site/api/foy';
+const SOURCE = 'https://nt.studybeepro.site/api/foy';
 
 export async function GET(req) {
   try {
     const q = new URL(req.url).searchParams;
 
-    const contentId =
-      q.get('content_id');
-
-    const courseId =
-      q.get('course_id');
+    const contentId = q.get('content_id');
+    const courseId = q.get('course_id');
 
     if (!contentId || !courseId) {
       return NextResponse.json(
         {
           success: false,
-          error:
-            'content_id and course_id are required',
+          error: 'content_id and course_id are required',
         },
         { status: 400 }
       );
     }
 
-    const key =
-      process.env.STUDYBEE_KEY;
-
-    const device =
-      process.env.STUDYBEE_DEVICE_ID;
+    const key = process.env.STUDYBEE_KEY;
+    const device = process.env.STUDYBEE_DEVICE_ID;
 
     if (!key || !device) {
       return NextResponse.json(
         {
           success: false,
-          error:
-            'Playback credentials are not configured on server.',
+          error: 'Playback credentials are not configured on server.',
         },
         { status: 500 }
       );
     }
 
     const url =
-      `${SOURCE}?content_id=${encodeURIComponent(
-        contentId
-      )}` +
-      `&course_id=${encodeURIComponent(
-        courseId
-      )}` +
+      `${SOURCE}?content_id=${encodeURIComponent(contentId)}` +
+      `&course_id=${encodeURIComponent(courseId)}` +
       `&key=${encodeURIComponent(key)}` +
       `&device_id=${encodeURIComponent(device)}`;
 
     const response = await fetch(url, {
       method: 'GET',
-
-      /*
-       * DO NOT CACHE PLAYBACK RESPONSE.
-       */
       cache: 'no-store',
-
       headers: {
-        Accept:
-          'application/json, text/plain, */*',
+        Accept: 'application/json',
         'User-Agent': 'Mozilla/5.0',
       },
     });
 
-    const text =
-      await response.text();
+    const text = await response.text();
+
+    // Upstream status ko clearly return karo
+    if (!response.ok) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Playback source returned HTTP ${response.status}`,
+          upstreamStatus: response.status,
+          upstreamContentType:
+            response.headers.get('content-type') || '',
+          preview: text.slice(0, 300),
+        },
+        { status: 502 }
+      );
+    }
 
     let data;
 
@@ -77,80 +72,55 @@ export async function GET(req) {
       return NextResponse.json(
         {
           success: false,
-          error:
-            'Playback source returned invalid JSON.',
-          status: response.status,
-          preview:
-            text.slice(0, 500),
-        },
-        { status: 502 }
-      );
-    }
-
-    if (!response.ok) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            `Playback source returned HTTP ${response.status}`,
-          sourceData: data,
+          error: 'Playback source returned invalid JSON.',
+          upstreamStatus: response.status,
+          preview: text.slice(0, 300),
         },
         { status: 502 }
       );
     }
 
     const decrypted =
-      data?.data?.decryptedData ||
       data?.decryptedData ||
+      data?.data?.decryptedData ||
       data?.data?.data?.decryptedData ||
       {};
 
     const playableUrl =
       decrypted?.file_url ||
       decrypted?.url ||
-      data?.data?.file_url ||
-      data?.data?.url ||
       data?.file_url ||
       data?.url ||
+      data?.data?.file_url ||
+      data?.data?.url ||
       null;
 
     if (!playableUrl) {
       return NextResponse.json(
         {
           success: false,
-          error:
-            'Playback response received, but no playable URL was found.',
-          sourceData: data,
+          error: 'Playback response received, but no playable URL was found.',
+          responseCode: data?.responseCode ?? null,
+          message: data?.message ?? null,
         },
         { status: 502 }
       );
     }
 
-    return NextResponse.json(
-      {
-        success: true,
-        url: playableUrl,
-        type:
-          decrypted?.file_type ?? null,
-        videoType:
-          decrypted?.video_type ?? null,
-        isDrm:
-          decrypted?.is_drm ?? null,
-      },
-      {
-        headers: {
-          'Cache-Control':
-            'no-store, no-cache, must-revalidate',
-        },
-      }
-    );
+    return NextResponse.json({
+      success: true,
+      url: playableUrl,
+      type: decrypted?.file_type ?? null,
+      videoType: decrypted?.video_type ?? null,
+      isDrm: decrypted?.is_drm ?? null,
+    });
   } catch (error) {
+    console.error('Playback API error:', error);
+
     return NextResponse.json(
       {
         success: false,
-        error:
-          error?.message ||
-          'Unable to load playback.',
+        error: error?.message || 'Unable to load playback.',
       },
       { status: 502 }
     );

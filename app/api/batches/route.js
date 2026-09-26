@@ -74,19 +74,25 @@ function extract(j) {
 export async function GET() {
   try {
     const response = await fetch(SOURCE, {
-      next: {
-        revalidate: 60,
-      },
+      cache: 'no-store',
       headers: {
-        Accept: 'application/json',
+        Accept:
+          'application/json, text/plain, */*',
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36',
+        Referer:
+          'https://nt.studybeepro.site/',
       },
     });
 
     if (!response.ok) {
+      const text = await response.text().catch(() => '');
+
       return NextResponse.json(
         {
           success: false,
           error: `Batch source returned ${response.status}`,
+          details: text.slice(0, 500),
         },
         { status: 502 }
       );
@@ -94,10 +100,12 @@ export async function GET() {
 
     const data = await response.json();
 
+    const batches = extract(data);
+
     return NextResponse.json(
       {
         success: true,
-        batches: extract(data),
+        batches,
       },
       {
         headers: {

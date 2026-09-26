@@ -1,187 +1,94 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 
-export default function PdfPlayer({ url, title, onClose }) {
-  const canvasRef = useRef(null);
-  const pdfjsRef = useRef(null);
-
-  const [pdf, setPdf] = useState(null);
-  const [page, setPage] = useState(1);
-  const [pages, setPages] = useState(0);
-  const [scale, setScale] = useState(1.2);
+export default function PdfPlayer({
+  url,
+  title = 'PDF Viewer',
+  onClose,
+}) {
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
+  function openPdf() {
+    if (!url) return;
 
-    async function loadPdf() {
-      try {
-        setLoading(true);
-        setError('');
-
-        // pdfjs-dist is loaded only in the browser.
-        const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
-
-        pdfjsLib.GlobalWorkerOptions.workerSrc =
-          `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
-
-        pdfjsRef.current = pdfjsLib;
-
-        const task = pdfjsLib.getDocument({
-          url,
-          withCredentials: false,
-        });
-
-        const document = await task.promise;
-
-        if (cancelled) return;
-
-        setPdf(document);
-        setPages(document.numPages);
-        setPage(1);
-      } catch (err) {
-        console.error(err);
-
-        if (!cancelled) {
-          setError('PDF load nahi ho saka.');
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    if (url) {
-      loadPdf();
-    }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [url]);
-
-  useEffect(() => {
-    if (!pdf || !canvasRef.current) return;
-
-    let cancelled = false;
-
-    async function renderPage() {
-      try {
-        const currentPage = await pdf.getPage(page);
-
-        if (cancelled) return;
-
-        const viewport = currentPage.getViewport({
-          scale,
-        });
-
-        const canvas = canvasRef.current;
-        const context = canvas.getContext('2d');
-
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-
-        await currentPage.render({
-          canvasContext: context,
-          viewport,
-        }).promise;
-      } catch (err) {
-        console.error(err);
-      }
-    }
-
-    renderPage();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [pdf, page, scale]);
+    window.open(
+      url,
+      '_blank',
+      'noopener,noreferrer'
+    );
+  }
 
   return (
     <div className="pm-pdf-player">
-
       <div className="pm-pdf-header">
-        <button onClick={onClose}>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close PDF"
+        >
           ←
         </button>
 
         <div className="pm-pdf-title">
-          {title || 'PDF Viewer'}
+          {title}
         </div>
-      </div>
-
-      <div className="pm-pdf-toolbar">
 
         <button
-          onClick={() =>
-            setPage((p) => Math.max(1, p - 1))
-          }
-          disabled={page <= 1}
+          type="button"
+          className="pm-pdf-open"
+          onClick={openPdf}
         >
-          ◀
+          Open PDF
         </button>
-
-        <span>
-          {page} / {pages || '—'}
-        </span>
-
-        <button
-          onClick={() =>
-            setPage((p) =>
-              Math.min(pages, p + 1)
-            )
-          }
-          disabled={page >= pages}
-        >
-          ▶
-        </button>
-
-        <button
-          onClick={() =>
-            setScale((s) =>
-              Math.max(0.6, s - 0.2)
-            )
-          }
-        >
-          −
-        </button>
-
-        <button
-          onClick={() =>
-            setScale((s) =>
-              Math.min(3, s + 0.2)
-            )
-          }
-        >
-          +
-        </button>
-
       </div>
 
       <div className="pm-pdf-content">
-
-        {loading && (
+        {loading && !error && (
           <div className="pm-pdf-loading">
-            Loading PDF...
+            <div className="pm-pdf-spinner">
+              ⏳
+            </div>
+
+            <div>Loading PDF...</div>
           </div>
         )}
 
-        {error && (
+        {error ? (
           <div className="pm-pdf-error">
-            {error}
+            <div className="pm-pdf-error-icon">
+              📄
+            </div>
+
+            <h3>PDF viewer couldn't load this file</h3>
+
+            <p>
+              Browser me PDF directly open karke
+              dekhein.
+            </p>
+
+            <button
+              type="button"
+              className="pm-primary"
+              onClick={openPdf}
+            >
+              Open PDF
+            </button>
           </div>
+        ) : (
+          <iframe
+            src={url}
+            title={title}
+            className="pm-pdf-frame"
+            onLoad={() => setLoading(false)}
+            onError={() => {
+              setLoading(false);
+              setError(true);
+            }}
+          />
         )}
-
-        <canvas
-          ref={canvasRef}
-          className="pm-pdf-canvas"
-        />
-
       </div>
-
     </div>
   );
 }

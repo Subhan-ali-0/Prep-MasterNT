@@ -59,7 +59,7 @@ function isFolder(item) {
   return (
     item?.type === 'folder' ||
     item?.data?.content_counts?.folders?.total > 0 ||
-    item?.data?.folders
+    Boolean(item?.data?.folders)
   );
 }
 
@@ -97,9 +97,9 @@ function getContentUrl(item) {
 
 function isYouTubeUrl(url = '') {
   return (
-    /youtube\.com\/embed\//i.test(url) ||
-    /youtube\.com\/watch/i.test(url) ||
-    /youtu\.be\//i.test(url)
+    /youtube\.com\/embed\//i.test(String(url)) ||
+    /youtube\.com\/watch/i.test(String(url)) ||
+    /youtu\.be\//i.test(String(url))
   );
 }
 
@@ -124,14 +124,6 @@ function isVideo(item) {
   );
 }
 
-/*
- * PDF/Notes detection.
- *
- * Important:
- * file_url alone is NOT automatically treated as PDF.
- * If the content explicitly says it has a PDF, then file_url
- * can be used as the PDF source.
- */
 function isPdf(item) {
   if (!item) return false;
 
@@ -195,10 +187,6 @@ function isPdf(item) {
     return true;
   }
 
-  /*
-   * Title based fallback is used only when the item
-   * doesn't look like a video.
-   */
   const looksLikeVideo =
     getFileType(item) === 2 ||
     getVideoType(item) > 0 ||
@@ -206,15 +194,11 @@ function isPdf(item) {
     /\.(mp4|webm)(\?|$)/i.test(fileUrl) ||
     isYouTubeUrl(fileUrl);
 
-  if (
+  return (
     !looksLikeVideo &&
     (title.includes('notes') ||
       title.includes('note'))
-  ) {
-    return true;
-  }
-
-  return false;
+  );
 }
 
 function getPdfUrl(item) {
@@ -239,10 +223,6 @@ function getPdfUrl(item) {
     item?.data?.url ||
     '';
 
-  /*
-   * Only use file_url as PDF when it is actually a PDF
-   * or the API explicitly marked the item as having a PDF.
-   */
   if (
     /\.pdf(\?|$)/i.test(String(fileUrl)) ||
     item?.has_pdf === 1 ||
@@ -294,7 +274,9 @@ function getTestQuestions(data) {
   ];
 
   for (const value of candidates) {
-    if (Array.isArray(value)) return value;
+    if (Array.isArray(value)) {
+      return value;
+    }
   }
 
   return [];
@@ -579,16 +561,13 @@ export default function PrepMasterApp() {
   async function openVideo(item) {
     if (!selectedBatch) return;
 
-    const directUrl = getContentUrl(item);
+    const directUrl = String(getContentUrl(item));
 
     setPlayerLoading(true);
     setPlayerError('');
     setPlayer(null);
 
     try {
-      /*
-       * Direct YouTube URL
-       */
       if (isYouTubeUrl(directUrl)) {
         setPlayer({
           type: 'youtube',
@@ -599,12 +578,6 @@ export default function PrepMasterApp() {
         return;
       }
 
-      /*
-       * Direct HLS / DASH URL.
-       *
-       * Example:
-       * https://...m3u8
-       */
       if (isHlsOrDashUrl(directUrl)) {
         setPlayer({
           type: 'video',
@@ -615,13 +588,6 @@ export default function PrepMasterApp() {
         return;
       }
 
-      /*
-       * Existing authorized playback API.
-       *
-       * The API can return:
-       * decryptedData.file_url
-       * which can be an HLS .m3u8 URL.
-       */
       const contentId = getId(item);
 
       if (!contentId) {
@@ -814,27 +780,25 @@ export default function PrepMasterApp() {
 
     let correct = 0;
 
-    testQuestions.forEach(
-      (question, index) => {
-        const selected = testAnswers[index];
+    testQuestions.forEach((question, index) => {
+      const selected = testAnswers[index];
 
-        const answer =
-          question?.correct_answer ??
-          question?.correctAnswer ??
-          question?.answer ??
-          question?.data?.correct_answer ??
-          question?.data?.correctAnswer;
+      const answer =
+        question?.correct_answer ??
+        question?.correctAnswer ??
+        question?.answer ??
+        question?.data?.correct_answer ??
+        question?.data?.correctAnswer;
 
-        if (
-          selected != null &&
-          answer != null &&
-          String(selected).toLowerCase() ===
-            String(answer).toLowerCase()
-        ) {
-          correct += 1;
-        }
+      if (
+        selected != null &&
+        answer != null &&
+        String(selected).toLowerCase() ===
+          String(answer).toLowerCase()
+      ) {
+        correct += 1;
       }
-    );
+    });
 
     setTestResult({
       correct,
@@ -942,12 +906,6 @@ export default function PrepMasterApp() {
   function renderContentItem(item, index) {
     const folder = isFolder(item);
     const pdf = isPdf(item);
-
-    /*
-     * PDF/Notes are checked BEFORE video.
-     * This prevents a notes item with file_type=2
-     * from accidentally opening in Shaka.
-     */
     const video = !pdf && isVideo(item);
     const test = isTest(item);
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import PdfPlayer from './PdfPlayer';
+import ShakaPlayer from './ShakaPlayer';
 
 function getId(item) {
   return String(
@@ -19,16 +20,6 @@ function getTitle(item) {
     item?.name ??
     item?.data?.title ??
     'Untitled'
-  );
-}
-
-function getThumbnail(item) {
-  return (
-    item?.thumbnail ??
-    item?.image ??
-    item?.banner ??
-    item?.data?.thumbnail ??
-    ''
   );
 }
 
@@ -90,21 +81,31 @@ function getVideoType(item) {
   );
 }
 
-function isVideo(item) {
-  const type = getFileType(item);
-  const videoType = getVideoType(item);
-
-  const url =
+function getContentUrl(item) {
+  return (
     item?.file_url ||
     item?.data?.file_url ||
     item?.url ||
     item?.data?.url ||
-    '';
+    item?.stream_url ||
+    item?.data?.stream_url ||
+    item?.video_url ||
+    item?.data?.video_url ||
+    ''
+  );
+}
+
+function isVideo(item) {
+  const type = getFileType(item);
+  const videoType = getVideoType(item);
+  const url = String(getContentUrl(item));
 
   return (
     type === 2 ||
     videoType > 0 ||
-    /\.(m3u8|mp4)(\?|$)/i.test(url)
+    /\.(m3u8|mp4|mpd)(\?|$)/i.test(url) ||
+    /youtube\.com\/(embed|watch)/i.test(url) ||
+    /youtu\.be\//i.test(url)
   );
 }
 
@@ -199,9 +200,7 @@ function getTestQuestions(data) {
   ];
 
   for (const value of candidates) {
-    if (Array.isArray(value)) {
-      return value;
-    }
+    if (Array.isArray(value)) return value;
   }
 
   return [];
@@ -252,21 +251,27 @@ function getOptions(question) {
   }
 
   if (options && typeof options === 'object') {
-    return Object.entries(options).map(
-      ([key, value]) => ({
-        key,
-        text:
-          typeof value === 'string'
-            ? value
-            : value?.text ??
-              value?.value ??
-              value?.title ??
-              '',
-      })
-    );
+    return Object.entries(options).map(([key, value]) => ({
+      key,
+      text:
+        typeof value === 'string'
+          ? value
+          : value?.text ??
+            value?.value ??
+            value?.title ??
+            '',
+    }));
   }
 
   return [];
+}
+
+function isYouTubeUrl(url = '') {
+  return (
+    /youtube\.com\/embed\//i.test(url) ||
+    /youtube\.com\/watch/i.test(url) ||
+    /youtu\.be\//i.test(url)
+  );
 }
 
 export default function PrepMasterApp() {
@@ -353,8 +358,7 @@ export default function PrepMasterApp() {
       );
     } catch (error) {
       setBatchError(
-        error?.message ||
-          'Unable to load batches.'
+        error?.message || 'Unable to load batches.'
       );
     } finally {
       setLoadingBatches(false);
@@ -365,8 +369,7 @@ export default function PrepMasterApp() {
     const id = getId(batch);
 
     return enrolled.some(
-      (item) =>
-        String(getId(item)) === String(id)
+      (item) => String(getId(item)) === String(id)
     );
   }
 
@@ -374,10 +377,7 @@ export default function PrepMasterApp() {
     if (!batch) return;
 
     if (!isEnrolled(batch)) {
-      setEnrolled((prev) => [
-        ...prev,
-        batch,
-      ]);
+      setEnrolled((prev) => [...prev, batch]);
     }
 
     setEnrollPopup(batch);
@@ -389,15 +389,13 @@ export default function PrepMasterApp() {
     setFolderStack([]);
     setContentItems([]);
     setContentError('');
+    setPlayer(null);
     setPage('batch');
 
     loadContent(getId(batch), '0');
   }
 
-  async function loadContent(
-    courseId,
-    folderId = '0'
-  ) {
+  async function loadContent(courseId, folderId = '0') {
     if (!courseId) return;
 
     setContentLoading(true);
@@ -407,9 +405,7 @@ export default function PrepMasterApp() {
       const response = await fetch(
         `/api/content?content=${encodeURIComponent(
           courseId
-        )}&folder=${encodeURIComponent(
-          folderId
-        )}`,
+        )}&folder=${encodeURIComponent(folderId)}`,
         {
           cache: 'no-store',
         }
@@ -419,8 +415,7 @@ export default function PrepMasterApp() {
 
       if (!response.ok || !json?.success) {
         throw new Error(
-          json?.error ||
-            'Unable to load content.'
+          json?.error || 'Unable to load content.'
         );
       }
 
@@ -473,23 +468,18 @@ export default function PrepMasterApp() {
     }
 
     const nextStack = [...folderStack];
-
     nextStack.pop();
 
     setFolderStack(nextStack);
 
     const parentId =
       nextStack.length > 0
-        ? nextStack[
-            nextStack.length - 1
-          ].id
+        ? nextStack[nextStack.length - 1].id
         : '0';
 
     setCurrentFolder(
       nextStack.length > 0
-        ? nextStack[
-            nextStack.length - 1
-          ]
+        ? nextStack[nextStack.length - 1]
         : null
     );
 
@@ -502,18 +492,51 @@ export default function PrepMasterApp() {
   async function openVideo(item) {
     if (!selectedBatch) return;
 
-    const contentId = getId(item);
-
-    if (!contentId) {
-      alert('Video ID unavailable.');
-      return;
-    }
+    const directUrl = getContentUrl(item);
 
     setPlayerLoading(true);
     setPlayerError('');
     setPlayer(null);
 
     try {
+      /*
+       * YouTube URL directly available from API
+       */
+      if (isYouTubeUrl(directUrl)) {
+        setPlayer({
+          type: 'youtube',
+          title: getTitle(item),
+          url: directUrl,
+        });
+
+        return;
+      }
+
+      /*
+       * Direct HLS/DASH URL
+       */
+      if (
+        /\.m3u8(\?|$)/i.test(directUrl) ||
+        /\.mpd(\?|$)/i.test(directUrl)
+      ) {
+        setPlayer({
+          type: 'video',
+          title: getTitle(item),
+          url: directUrl,
+        });
+
+        return;
+      }
+
+      /*
+       * Otherwise use existing authorized playback API.
+       */
+      const contentId = getId(item);
+
+      if (!contentId) {
+        throw new Error('Video ID unavailable.');
+      }
+
       const response = await fetch(
         `/api/playback?content_id=${encodeURIComponent(
           contentId
@@ -540,11 +563,19 @@ export default function PrepMasterApp() {
         );
       }
 
-      setPlayer({
-        type: 'video',
-        title: getTitle(item),
-        url: json.url,
-      });
+      if (isYouTubeUrl(json.url)) {
+        setPlayer({
+          type: 'youtube',
+          title: getTitle(item),
+          url: json.url,
+        });
+      } else {
+        setPlayer({
+          type: 'video',
+          title: getTitle(item),
+          url: json.url,
+        });
+      }
     } catch (error) {
       setPlayerError(
         error?.message ||
@@ -607,12 +638,6 @@ export default function PrepMasterApp() {
       const json = await response.json();
 
       if (!response.ok || !json?.success) {
-        if (response.status === 401) {
-          throw new Error(
-            'Test access authorized nahi hai. Test API ne 401 Unauthorized return kiya.'
-          );
-        }
-
         throw new Error(
           json?.error ||
             `Test source returned HTTP ${response.status}`
@@ -623,6 +648,12 @@ export default function PrepMasterApp() {
         getTestQuestions(json?.data);
 
       setTestQuestions(questions);
+
+      if (!questions.length) {
+        setTestError(
+          'Test instructions load ho gayi, lekin questions nahi mile.'
+        );
+      }
     } catch (error) {
       setTestError(
         error?.message ||
@@ -652,12 +683,6 @@ export default function PrepMasterApp() {
       const json = await response.json();
 
       if (!response.ok || !json?.success) {
-        if (response.status === 401) {
-          throw new Error(
-            'Test access authorized nahi hai. Test API ne 401 Unauthorized return kiya.'
-          );
-        }
-
         throw new Error(
           json?.error ||
             `Test source returned HTTP ${response.status}`
@@ -670,6 +695,12 @@ export default function PrepMasterApp() {
       setTestQuestions(questions);
       setTestAnswers({});
       setTestResult(null);
+
+      if (!questions.length) {
+        setTestError(
+          'Test data load ho gaya, lekin questions nahi mile.'
+        );
+      }
     } catch (error) {
       setTestError(
         error?.message ||
@@ -687,8 +718,7 @@ export default function PrepMasterApp() {
 
     testQuestions.forEach(
       (question, index) => {
-        const selected =
-          testAnswers[index];
+        const selected = testAnswers[index];
 
         const answer =
           question?.correct_answer ??
@@ -728,9 +758,7 @@ export default function PrepMasterApp() {
   }
 
   const filteredBatches = useMemo(() => {
-    const q = search
-      .trim()
-      .toLowerCase();
+    const q = search.trim().toLowerCase();
 
     if (!q) return batches;
 
@@ -753,8 +781,7 @@ export default function PrepMasterApp() {
   );
 
   function renderBatchCard(batch) {
-    const enrolledNow =
-      isEnrolled(batch);
+    const enrolledNow = isEnrolled(batch);
 
     return (
       <div
@@ -779,9 +806,7 @@ export default function PrepMasterApp() {
           <h3>{getTitle(batch)}</h3>
 
           {getDescription(batch) && (
-            <p>
-              {getDescription(batch)}
-            </p>
+            <p>{getDescription(batch)}</p>
           )}
 
           <div className="pm-price">
@@ -793,9 +818,7 @@ export default function PrepMasterApp() {
           <div className="pm-card-actions">
             <button
               className="pm-secondary"
-              onClick={() =>
-                openBatch(batch)
-              }
+              onClick={() => openBatch(batch)}
             >
               Study
             </button>
@@ -818,10 +841,7 @@ export default function PrepMasterApp() {
     );
   }
 
-  function renderContentItem(
-    item,
-    index
-  ) {
+  function renderContentItem(item, index) {
     const folder = isFolder(item);
     const video = isVideo(item);
     const pdf = isPdf(item);
@@ -928,8 +948,7 @@ export default function PrepMasterApp() {
           <div className="pm-error">
             {batchError}
           </div>
-        ) : filteredBatches.length ===
-          0 ? (
+        ) : filteredBatches.length === 0 ? (
           <div className="pm-state">
             No batches found.
           </div>
@@ -949,23 +968,17 @@ export default function PrepMasterApp() {
       <>
         <div className="pm-page-title">
           <h1>My Batches</h1>
-          <p>
-            Your enrolled batches
-          </p>
+          <p>Your enrolled batches</p>
         </div>
 
-        {enrolledBatches.length ===
-        0 ? (
+        {enrolledBatches.length === 0 ? (
           <div className="pm-empty">
             <div>📚</div>
 
-            <h3>
-              No enrolled batches
-            </h3>
+            <h3>No enrolled batches</h3>
 
             <p>
-              Enroll in a batch to see it
-              here.
+              Enroll in a batch to see it here.
             </p>
 
             <button
@@ -988,21 +1001,12 @@ export default function PrepMasterApp() {
     );
   }
 
-  function ComingSoon({
-    title,
-    icon,
-  }) {
+  function ComingSoon({ title, icon }) {
     return (
-      <div className="pm-coming">
-        <div className="pm-coming-icon">
-          {icon}
-        </div>
-
-        <h2>{title}</h2>
-
-        <p>
-          This feature is coming soon.
-        </p>
+      <div className="pm-empty">
+        <div>{icon}</div>
+        <h3>{title}</h3>
+        <p>This feature is coming soon.</p>
       </div>
     );
   }
@@ -1010,27 +1014,25 @@ export default function PrepMasterApp() {
   function BatchPage() {
     return (
       <>
-        <div className="pm-page-title pm-batch-head">
-          <div>
-            <button
-              className="pm-back"
-              onClick={goBackFolder}
-            >
-              ← Back
-            </button>
+        <div className="pm-page-title">
+          <button
+            className="pm-back-button"
+            onClick={goBackFolder}
+          >
+            ← Back
+          </button>
 
-            <h1>
-              {currentFolder
-                ? currentFolder.title
-                : getTitle(selectedBatch)}
-            </h1>
+          <h1>
+            {currentFolder
+              ? getTitle(currentFolder)
+              : getTitle(selectedBatch)}
+          </h1>
 
-            <p>
-              {currentFolder
-                ? 'Course content'
-                : 'Study materials'}
-            </p>
-          </div>
+          <p>
+            {currentFolder
+              ? 'Folder content'
+              : 'Course content'}
+          </p>
         </div>
 
         {contentLoading ? (
@@ -1042,17 +1044,8 @@ export default function PrepMasterApp() {
             {contentError}
           </div>
         ) : contentItems.length === 0 ? (
-          <div className="pm-empty">
-            <div>📚</div>
-
-            <h3>
-              No content found
-            </h3>
-
-            <p>
-              Is folder me abhi content
-              available nahi hai.
-            </p>
+          <div className="pm-state">
+            No content found.
           </div>
         ) : (
           <div className="pm-content-list">
@@ -1065,24 +1058,80 @@ export default function PrepMasterApp() {
     );
   }
 
+  function PlayerOverlay() {
+    if (!player) return null;
+
+    if (player.type === 'pdf') {
+      return (
+        <div className="pm-player-overlay">
+          <PdfPlayer
+            url={player.url}
+            title={player.title}
+            onClose={closePlayer}
+          />
+        </div>
+      );
+    }
+
+    if (player.type === 'youtube') {
+      return (
+        <div className="pm-player-overlay">
+          <div className="pm-video-player">
+            <div className="pm-video-header">
+              <button onClick={closePlayer}>
+                ←
+              </button>
+
+              <div className="pm-video-title">
+                {player.title}
+              </div>
+            </div>
+
+            <div className="pm-youtube-wrap">
+              <iframe
+                src={player.url}
+                title={player.title}
+                className="pm-youtube-player"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              />
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (player.type === 'video') {
+      return (
+        <div className="pm-player-overlay">
+          <ShakaPlayer
+            url={player.url}
+            title={player.title}
+            onClose={closePlayer}
+          />
+        </div>
+      );
+    }
+
+    return null;
+  }
+
   function TestOverlay() {
     if (!activeTest) return null;
 
     return (
-      <div className="pm-popup-overlay">
-        <div className="pm-popup pm-test-popup">
-          <div className="pm-popup-top">
-            <button
-              className="pm-close"
-              onClick={closeTest}
-            >
-              ✕
+      <div className="pm-test-overlay">
+        <div className="pm-test-card">
+          <div className="pm-test-header">
+            <button onClick={closeTest}>
+              ←
             </button>
-          </div>
 
-          <h2>
-            {activeTest.title}
-          </h2>
+            <div>
+              <h2>{activeTest.title}</h2>
+              <p>Test</p>
+            </div>
+          </div>
 
           {testLoading ? (
             <div className="pm-state">
@@ -1091,196 +1140,144 @@ export default function PrepMasterApp() {
           ) : testError ? (
             <div className="pm-error">
               {testError}
+
+              <button
+                className="pm-primary pm-small-button"
+                onClick={startTest}
+                style={{ marginTop: 12 }}
+              >
+                Try Again
+              </button>
             </div>
-          ) : testResult ? (
-            <div className="pm-test-result">
-              <div className="pm-result-icon">
-                🎉
-              </div>
+          ) : testQuestions.length === 0 ? (
+            <div className="pm-empty">
+              <div>📝</div>
 
               <h3>
-                Test Submitted
+                Test questions not available
               </h3>
 
               <p>
-                Score:{" "}
-                <strong>
-                  {testResult.correct}
-                </strong>{" "}
-                /{" "}
-                {testResult.total}
+                Instructions load hui hain, lekin
+                questions response me nahi mile.
               </p>
 
               <button
-                className="pm-primary"
-                onClick={closeTest}
-              >
-                Close
-              </button>
-            </div>
-          ) : testQuestions.length ===
-            0 ? (
-            <div className="pm-test-start">
-              <div className="pm-result-icon">
-                📝
-              </div>
-
-              <p>
-                Test questions load karne
-                ke liye Start Test dabao.
-              </p>
-
-              <button
-                className="pm-primary"
+                className="pm-primary pm-small-button"
                 onClick={startTest}
               >
-                Start Test
+                Load Test Data
               </button>
             </div>
           ) : (
-            <div className="pm-test-page">
-              {testQuestions.map(
-                (question, index) => {
-                  const options =
-                    getOptions(question);
+            <>
+              <div className="pm-test-questions">
+                {testQuestions.map(
+                  (question, index) => {
+                    const options =
+                      getOptions(question);
 
-                  return (
-                    <div
-                      className="pm-test-question"
-                      key={index}
-                    >
-                      <div className="pm-test-question-title">
-                        {index + 1}.{" "}
-                        {getQuestionText(
-                          question
-                        )}
+                    return (
+                      <div
+                        className="pm-question"
+                        key={
+                          question?.id ??
+                          question?.question_id ??
+                          index
+                        }
+                      >
+                        <div className="pm-question-title">
+                          {index + 1}.{' '}
+                          {getQuestionText(
+                            question
+                          )}
+                        </div>
+
+                        <div className="pm-options">
+                          {options.map(
+                            (option) => (
+                              <label
+                                className="pm-option"
+                                key={option.key}
+                              >
+                                <input
+                                  type="radio"
+                                  name={`question-${index}`}
+                                  value={option.key}
+                                  checked={
+                                    testAnswers[
+                                      index
+                                    ] ===
+                                    option.key
+                                  }
+                                  onChange={() =>
+                                    setTestAnswers(
+                                      (prev) => ({
+                                        ...prev,
+                                        [index]:
+                                          option.key,
+                                      })
+                                    )
+                                  }
+                                />
+
+                                <span>
+                                  {option.key}.{' '}
+                                  {option.text}
+                                </span>
+                              </label>
+                            )
+                          )}
+                        </div>
                       </div>
+                    );
+                  }
+                )}
+              </div>
 
-                      {options.map(
-                        (option) => (
-                          <label
-                            className="pm-test-option"
-                            key={option.key}
-                          >
-                            <input
-                              type="radio"
-                              name={`question-${index}`}
-                              value={
-                                option.key
-                              }
-                              checked={
-                                testAnswers[
-                                  index
-                                ] ===
-                                option.key
-                              }
-                              onChange={() =>
-                                setTestAnswers(
-                                  (prev) => ({
-                                    ...prev,
-                                    [index]:
-                                      option.key,
-                                  })
-                                )
-                              }
-                            />
+              {!testResult ? (
+                <button
+                  className="pm-primary pm-test-submit"
+                  onClick={submitLocalTest}
+                >
+                  Submit Test
+                </button>
+              ) : (
+                <div className="pm-test-result">
+                  <h3>Test Completed 🎉</h3>
 
-                            <span>
-                              <strong>
-                                {
-                                  option.key
-                                }
-                                .
-                              </strong>{" "}
-                              {option.text}
-                            </span>
-                          </label>
-                        )
-                      )}
-                    </div>
-                  );
-                }
+                  <p>
+                    Score:{' '}
+                    <strong>
+                      {testResult.correct}
+                    </strong>{' '}
+                    / {testResult.total}
+                  </p>
+
+                  <button
+                    className="pm-secondary"
+                    onClick={() =>
+                      setTestResult(null)
+                    }
+                  >
+                    Retake
+                  </button>
+                </div>
               )}
-
-              <button
-                className="pm-test-submit"
-                onClick={
-                  submitLocalTest
-                }
-              >
-                Submit Test
-              </button>
-            </div>
+            </>
           )}
         </div>
       </div>
     );
   }
 
-  function PlayerOverlay() {
-    if (!player && !playerLoading && !playerError) {
-      return null;
-    }
-
-    if (
-      player?.type === 'pdf'
-    ) {
-      return (
-        <PdfPlayer
-          url={player.url}
-          title={player.title}
-          onClose={closePlayer}
-        />
-      );
-    }
-
-    return (
-      <div className="pm-player-overlay">
-        <div className="pm-player-header">
-          <button
-            onClick={closePlayer}
-          >
-            ←
-          </button>
-
-          <div className="pm-player-title">
-            {player?.title ||
-              'Player'}
-          </div>
-        </div>
-
-        <div className="pm-player-content">
-          {playerLoading ? (
-            <div className="pm-loading">
-              Loading...
-            </div>
-          ) : playerError ? (
-            <div className="pm-error">
-              {playerError}
-            </div>
-          ) : player?.type ===
-            'video' ? (
-            <video
-              src={player.url}
-              controls
-              playsInline
-              autoPlay
-            />
-          ) : null}
-        </div>
-      </div>
-    );
-  }
-
-  function SideMenu() {
+  function Menu() {
     if (!menuOpen) return null;
 
     return (
       <div
-        className="pm-menu-overlay"
-        onClick={() =>
-          setMenuOpen(false)
-        }
+        className="pm-menu-backdrop"
+        onClick={() => setMenuOpen(false)}
       >
         <div
           className="pm-menu"
@@ -1288,99 +1285,74 @@ export default function PrepMasterApp() {
             e.stopPropagation()
           }
         >
-          <div className="pm-menu-header">
-            <div className="pm-menu-title">
-              Prep Master
-            </div>
+          <button
+            onClick={() => {
+              setPage('home');
+              setMenuOpen(false);
+            }}
+          >
+            📚 Batches
+          </button>
 
-            <button
-              className="pm-menu-close"
-              onClick={() =>
-                setMenuOpen(false)
-              }
-            >
-              ✕
-            </button>
-          </div>
+          <button
+            onClick={() => {
+              setPage('mybatches');
+              setMenuOpen(false);
+            }}
+          >
+            📖 My Batches
+          </button>
 
-          <div className="pm-menu-list">
-            <button
-              className="pm-menu-item"
-              onClick={() => {
-                setPage('home');
-                setMenuOpen(false);
-              }}
-            >
-              📚 Batches
-            </button>
+          <button
+            onClick={() => {
+              setPage('community');
+              setMenuOpen(false);
+            }}
+          >
+            💬 Community
+          </button>
 
-            <button
-              className="pm-menu-item"
-              onClick={() => {
-                setPage('my');
-                setMenuOpen(false);
-              }}
-            >
-              📖 My Batches
-            </button>
+          <button
+            onClick={() => {
+              setPage('ai');
+              setMenuOpen(false);
+            }}
+          >
+            🤖 AI Doubts Support
+          </button>
 
-            <button
-              className="pm-menu-item"
-              onClick={() => {
-                const url =
-                  process.env
-                    .NEXT_PUBLIC_TELEGRAM_URL;
+          <a
+            href={
+              process.env
+                .NEXT_PUBLIC_TELEGRAM_URL ||
+              '#'
+            }
+            target="_blank"
+            rel="noreferrer"
+          >
+            ✈️ Join Telegram
+          </a>
 
-                if (url) {
-                  window.open(
-                    url,
-                    '_blank',
-                    'noopener,noreferrer'
-                  );
-                } else {
-                  alert(
-                    'Telegram link configured nahi hai.'
-                  );
-                }
-              }}
-            >
-              ✈️ Join Telegram
-            </button>
+          <a
+            href={
+              process.env
+                .NEXT_PUBLIC_OWNER_CONTACT ||
+              '#'
+            }
+            target="_blank"
+            rel="noreferrer"
+          >
+            👤 Contact Owner
+          </a>
 
-            <button
-              className="pm-menu-item"
-              onClick={() => {
-                const url =
-                  process.env
-                    .NEXT_PUBLIC_OWNER_CONTACT;
-
-                if (url) {
-                  window.open(
-                    url,
-                    '_blank',
-                    'noopener,noreferrer'
-                  );
-                } else {
-                  alert(
-                    'Owner contact configured nahi hai.'
-                  );
-                }
-              }}
-            >
-              👤 Contact Owner
-            </button>
-
-            <button
-              className="pm-menu-item"
-              onClick={() => {
-                alert(
-                  'Admin Panel coming soon.'
-                );
-              }}
-            >
-              ⚙️ Admin Panel
-            </button>
-          </div>
+          <button
+            onClick={() => {
+              setPage('admin');
+              setMenuOpen(false);
+            }}
+          >
+            ⚙️ Admin Panel
+          </button>
         </div>
       </div>
     );
@@ -1399,32 +1371,22 @@ export default function PrepMasterApp() {
             setPage('community')
           }
         >
-          <span className="pm-bottom-nav-icon">
-            💬
-          </span>
-
-          <span>
-            Community
-          </span>
+          <span>💬</span>
+          <small>Community</small>
         </button>
 
         <button
           className={
-            page === 'my'
+            page === 'mybatches'
               ? 'active'
               : ''
           }
           onClick={() =>
-            setPage('my')
+            setPage('mybatches')
           }
         >
-          <span className="pm-bottom-nav-icon">
-            📖
-          </span>
-
-          <span>
-            My Batches
-          </span>
+          <span>📖</span>
+          <small>My Batches</small>
         </button>
 
         <button
@@ -1438,65 +1400,52 @@ export default function PrepMasterApp() {
             setPage('home')
           }
         >
-          <span className="pm-bottom-nav-icon">
-            📚
-          </span>
-
-          <span>
-            Batches
-          </span>
+          <span>📚</span>
+          <small>Batches</small>
         </button>
 
         <button
           className={
-            page === 'ai'
-              ? 'active'
-              : ''
+            page === 'ai' ? 'active' : ''
           }
-          onClick={() =>
-            setPage('ai')
-          }
+          onClick={() => setPage('ai')}
         >
-          <span className="pm-bottom-nav-icon">
-            🤖
-          </span>
-
-          <span>
-            AI Doubts
-          </span>
+          <span>🤖</span>
+          <small>AI Doubts</small>
         </button>
       </nav>
     );
   }
 
-  function renderPage() {
-    if (page === 'my') {
-      return <MyBatchesPage />;
-    }
+  let mainContent = null;
 
-    if (page === 'community') {
-      return (
-        <ComingSoon
-          title="Community"
-          icon="💬"
-        />
-      );
-    }
-
-    if (page === 'ai') {
-      return (
-        <ComingSoon
-          title="AI Doubts"
-          icon="🤖"
-        />
-      );
-    }
-
-    if (page === 'batch') {
-      return <BatchPage />;
-    }
-
-    return <HomePage />;
+  if (page === 'home') {
+    mainContent = <HomePage />;
+  } else if (page === 'mybatches') {
+    mainContent = <MyBatchesPage />;
+  } else if (page === 'batch') {
+    mainContent = <BatchPage />;
+  } else if (page === 'community') {
+    mainContent = (
+      <ComingSoon
+        title="Community"
+        icon="💬"
+      />
+    );
+  } else if (page === 'ai') {
+    mainContent = (
+      <ComingSoon
+        title="AI Doubts Support"
+        icon="🤖"
+      />
+    );
+  } else if (page === 'admin') {
+    mainContent = (
+      <ComingSoon
+        title="Admin Panel"
+        icon="⚙️"
+      />
+    );
   }
 
   return (
@@ -1506,17 +1455,16 @@ export default function PrepMasterApp() {
           <img
             src="/prep-master-logo.png"
             alt="Prep Master"
+            className="pm-logo"
           />
 
-          <div className="pm-brand-title">
-            Prep Master
-          </div>
+          <span>Prep Master</span>
         </div>
 
         <button
           className="pm-menu-button"
           onClick={() =>
-            setMenuOpen(true)
+            setMenuOpen((value) => !value)
           }
           aria-label="Open menu"
         >
@@ -1524,30 +1472,39 @@ export default function PrepMasterApp() {
         </button>
       </header>
 
-      <main className="pm-container">
-        {renderPage()}
+      <main className="pm-main">
+        {mainContent}
       </main>
 
       <BottomNav />
 
-      <SideMenu />
+      <Menu />
 
       {enrollPopup && (
-        <div className="pm-popup-overlay">
-          <div className="pm-popup">
-            <img
-              className="pm-popup-logo"
-              src="/prep-master-icon.png"
-              alt="Prep Master"
-            />
+        <div
+          className="pm-popup-backdrop"
+          onClick={() =>
+            setEnrollPopup(null)
+          }
+        >
+          <div
+            className="pm-popup"
+            onClick={(e) =>
+              e.stopPropagation()
+            }
+          >
+            <div className="pm-popup-icon">
+              🎉
+            </div>
 
-            <h2>
-              Congratulations 🎉
-            </h2>
+            <h2>Congratulations 🎉</h2>
 
             <p>
-              You have successfully
-              enrolled in this batch.
+              You have successfully enrolled
+              in{' '}
+              <strong>
+                {getTitle(enrollPopup)}
+              </strong>.
             </p>
 
             <button
@@ -1557,6 +1514,46 @@ export default function PrepMasterApp() {
               }
             >
               Continue
+            </button>
+          </div>
+        </div>
+      )}
+
+      {playerLoading && (
+        <div className="pm-popup-backdrop">
+          <div className="pm-popup">
+            <div className="pm-popup-icon">
+              🎥
+            </div>
+
+            <h3>Loading...</h3>
+
+            <p>
+              Please wait while the content
+              loads.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {playerError && !player && (
+        <div className="pm-popup-backdrop">
+          <div className="pm-popup">
+            <div className="pm-popup-icon">
+              ⚠️
+            </div>
+
+            <h3>Unable to open content</h3>
+
+            <p>{playerError}</p>
+
+            <button
+              className="pm-primary"
+              onClick={() =>
+                setPlayerError('')
+              }
+            >
+              Close
             </button>
           </div>
         </div>

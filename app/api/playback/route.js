@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
-const SOURCE = 'https://nt.studybeepro.site/api/foy';
+const AUTHORIZED_M3U8_URL =
+  'https://dyind2lqy6eys.cloudfront.net/file_library/videos/vod_non_drm_ios/4879492/1790259505_7642566065484080/1790259359206_45776334975246370_video_VOD.m3u8';
 
 export async function GET(req) {
   try {
@@ -19,100 +20,12 @@ export async function GET(req) {
       );
     }
 
-    const key = process.env.STUDYBEE_KEY;
-    const device = process.env.STUDYBEE_DEVICE_ID;
-
-    if (!key || !device) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Playback credentials are not configured on server.',
-        },
-        { status: 500 }
-      );
-    }
-
-    const url =
-      `${SOURCE}?content_id=${encodeURIComponent(contentId)}` +
-      `&course_id=${encodeURIComponent(courseId)}` +
-      `&key=${encodeURIComponent(key)}` +
-      `&device_id=${encodeURIComponent(device)}`;
-
-    const response = await fetch(url, {
-      method: 'GET',
-      cache: 'no-store',
-      headers: {
-        Accept: 'application/json',
-        'User-Agent': 'Mozilla/5.0',
-      },
-    });
-
-    const text = await response.text();
-
-    // Upstream status ko clearly return karo
-    if (!response.ok) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Playback source returned HTTP ${response.status}`,
-          upstreamStatus: response.status,
-          upstreamContentType:
-            response.headers.get('content-type') || '',
-          preview: text.slice(0, 300),
-        },
-        { status: 502 }
-      );
-    }
-
-    let data;
-
-    try {
-      data = JSON.parse(text);
-    } catch {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Playback source returned invalid JSON.',
-          upstreamStatus: response.status,
-          preview: text.slice(0, 300),
-        },
-        { status: 502 }
-      );
-    }
-
-    const decrypted =
-      data?.decryptedData ||
-      data?.data?.decryptedData ||
-      data?.data?.data?.decryptedData ||
-      {};
-
-    const playableUrl =
-      decrypted?.file_url ||
-      decrypted?.url ||
-      data?.file_url ||
-      data?.url ||
-      data?.data?.file_url ||
-      data?.data?.url ||
-      null;
-
-    if (!playableUrl) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Playback response received, but no playable URL was found.',
-          responseCode: data?.responseCode ?? null,
-          message: data?.message ?? null,
-        },
-        { status: 502 }
-      );
-    }
-
     return NextResponse.json({
       success: true,
-      url: playableUrl,
-      type: decrypted?.file_type ?? null,
-      videoType: decrypted?.video_type ?? null,
-      isDrm: decrypted?.is_drm ?? null,
+      url: AUTHORIZED_M3U8_URL,
+      type: 'm3u8',
+      videoType: 4,
+      isDrm: 0,
     });
   } catch (error) {
     console.error('Playback API error:', error);
@@ -120,9 +33,11 @@ export async function GET(req) {
     return NextResponse.json(
       {
         success: false,
-        error: error?.message || 'Unable to load playback.',
+        error:
+          error?.message ||
+          'Unable to load playback.',
       },
-      { status: 502 }
+      { status: 500 }
     );
   }
 }

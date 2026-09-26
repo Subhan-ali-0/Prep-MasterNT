@@ -95,6 +95,21 @@ function getContentUrl(item) {
   );
 }
 
+function isYouTubeUrl(url = '') {
+  return (
+    /youtube\.com\/embed\//i.test(url) ||
+    /youtube\.com\/watch/i.test(url) ||
+    /youtu\.be\//i.test(url)
+  );
+}
+
+function isHlsOrDashUrl(url = '') {
+  return (
+    /\.m3u8(\?|$)/i.test(String(url)) ||
+    /\.mpd(\?|$)/i.test(String(url))
+  );
+}
+
 function isVideo(item) {
   const type = getFileType(item);
   const videoType = getVideoType(item);
@@ -103,12 +118,20 @@ function isVideo(item) {
   return (
     type === 2 ||
     videoType > 0 ||
-    /\.(m3u8|mp4|mpd)(\?|$)/i.test(url) ||
-    /youtube\.com\/(embed|watch)/i.test(url) ||
-    /youtu\.be\//i.test(url)
+    isHlsOrDashUrl(url) ||
+    /\.(mp4|webm)(\?|$)/i.test(url) ||
+    isYouTubeUrl(url)
   );
 }
 
+/*
+ * PDF/Notes detection.
+ *
+ * Important:
+ * file_url alone is NOT automatically treated as PDF.
+ * If the content explicitly says it has a PDF, then file_url
+ * can be used as the PDF source.
+ */
 function isPdf(item) {
   if (!item) return false;
 
@@ -122,44 +145,115 @@ function isPdf(item) {
 
   const title = String(
     item?.title ??
+      item?.name ??
       item?.data?.title ??
       ''
   ).toLowerCase();
 
-  const url = String(
+  const directPdfUrl = String(
+    item?.pdf_url ??
+      item?.data?.pdf_url ??
+      item?.notes_url ??
+      item?.data?.notes_url ??
+      item?.note_url ??
+      item?.data?.note_url ??
+      item?.document_url ??
+      item?.data?.document_url ??
+      ''
+  );
+
+  const fileUrl = String(
     item?.file_url ??
       item?.data?.file_url ??
-      item?.pdf_url ??
-      item?.data?.pdf_url ??
       item?.url ??
       item?.data?.url ??
       ''
   );
 
-  return (
+  const hasPdf =
+    item?.has_pdf === 1 ||
+    item?.has_pdf === '1' ||
+    item?.data?.has_pdf === 1 ||
+    item?.data?.has_pdf === '1';
+
+  const explicitPdf =
     kind === 'pdf' ||
     kind === 'notes' ||
     kind === 'note' ||
-    item?.has_pdf === 1 ||
-    item?.has_pdf === '1' ||
     Boolean(item?.pdf_url) ||
     Boolean(item?.data?.pdf_url) ||
-    /\.pdf(\?|$)/i.test(url) ||
-    title.includes('notes') ||
-    title.includes('note')
-  );
+    Boolean(item?.notes_url) ||
+    Boolean(item?.data?.notes_url) ||
+    Boolean(item?.note_url) ||
+    Boolean(item?.data?.note_url) ||
+    Boolean(item?.document_url) ||
+    Boolean(item?.data?.document_url) ||
+    /\.pdf(\?|$)/i.test(directPdfUrl) ||
+    /\.pdf(\?|$)/i.test(fileUrl);
+
+  if (explicitPdf || hasPdf) {
+    return true;
+  }
+
+  /*
+   * Title based fallback is used only when the item
+   * doesn't look like a video.
+   */
+  const looksLikeVideo =
+    getFileType(item) === 2 ||
+    getVideoType(item) > 0 ||
+    isHlsOrDashUrl(fileUrl) ||
+    /\.(mp4|webm)(\?|$)/i.test(fileUrl) ||
+    isYouTubeUrl(fileUrl);
+
+  if (
+    !looksLikeVideo &&
+    (title.includes('notes') ||
+      title.includes('note'))
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 function getPdfUrl(item) {
-  return (
+  const directPdf =
     item?.pdf_url ||
     item?.data?.pdf_url ||
+    item?.notes_url ||
+    item?.data?.notes_url ||
+    item?.note_url ||
+    item?.data?.note_url ||
+    item?.document_url ||
+    item?.data?.document_url;
+
+  if (directPdf) {
+    return String(directPdf);
+  }
+
+  const fileUrl =
     item?.file_url ||
     item?.data?.file_url ||
     item?.url ||
     item?.data?.url ||
-    ''
-  );
+    '';
+
+  /*
+   * Only use file_url as PDF when it is actually a PDF
+   * or the API explicitly marked the item as having a PDF.
+   */
+  if (
+    /\.pdf(\?|$)/i.test(String(fileUrl)) ||
+    item?.has_pdf === 1 ||
+    item?.has_pdf === '1' ||
+    item?.data?.has_pdf === 1 ||
+    item?.data?.has_pdf === '1'
+  ) {
+    return String(fileUrl);
+  }
+
+  return '';
 }
 
 function isTest(item) {
@@ -264,14 +358,6 @@ function getOptions(question) {
   }
 
   return [];
-}
-
-function isYouTubeUrl(url = '') {
-  return (
-    /youtube\.com\/embed\//i.test(url) ||
-    /youtube\.com\/watch/i.test(url) ||
-    /youtu\.be\//i.test(url)
-  );
 }
 
 export default function PrepMasterApp() {
@@ -390,6 +476,7 @@ export default function PrepMasterApp() {
     setContentItems([]);
     setContentError('');
     setPlayer(null);
+    setPlayerError('');
     setPage('batch');
 
     loadContent(getId(batch), '0');
@@ -500,7 +587,7 @@ export default function PrepMasterApp() {
 
     try {
       /*
-       * YouTube URL directly available from API
+       * Direct YouTube URL
        */
       if (isYouTubeUrl(directUrl)) {
         setPlayer({
@@ -513,12 +600,12 @@ export default function PrepMasterApp() {
       }
 
       /*
-       * Direct HLS/DASH URL
+       * Direct HLS / DASH URL.
+       *
+       * Example:
+       * https://...m3u8
        */
-      if (
-        /\.m3u8(\?|$)/i.test(directUrl) ||
-        /\.mpd(\?|$)/i.test(directUrl)
-      ) {
+      if (isHlsOrDashUrl(directUrl)) {
         setPlayer({
           type: 'video',
           title: getTitle(item),
@@ -529,7 +616,11 @@ export default function PrepMasterApp() {
       }
 
       /*
-       * Otherwise use existing authorized playback API.
+       * Existing authorized playback API.
+       *
+       * The API can return:
+       * decryptedData.file_url
+       * which can be an HLS .m3u8 URL.
        */
       const contentId = getId(item);
 
@@ -557,23 +648,30 @@ export default function PrepMasterApp() {
         );
       }
 
-      if (!json?.url) {
+      const playableUrl =
+        json?.url ||
+        json?.data?.url ||
+        json?.decryptedData?.file_url ||
+        json?.data?.decryptedData?.file_url ||
+        '';
+
+      if (!playableUrl) {
         throw new Error(
           'No playable video URL was returned.'
         );
       }
 
-      if (isYouTubeUrl(json.url)) {
+      if (isYouTubeUrl(playableUrl)) {
         setPlayer({
           type: 'youtube',
           title: getTitle(item),
-          url: json.url,
+          url: playableUrl,
         });
       } else {
         setPlayer({
           type: 'video',
           title: getTitle(item),
-          url: json.url,
+          url: playableUrl,
         });
       }
     } catch (error) {
@@ -843,8 +941,14 @@ export default function PrepMasterApp() {
 
   function renderContentItem(item, index) {
     const folder = isFolder(item);
-    const video = isVideo(item);
     const pdf = isPdf(item);
+
+    /*
+     * PDF/Notes are checked BEFORE video.
+     * This prevents a notes item with file_type=2
+     * from accidentally opening in Shaka.
+     */
+    const video = !pdf && isVideo(item);
     const test = isTest(item);
 
     let icon = '📄';
@@ -861,10 +965,10 @@ export default function PrepMasterApp() {
         onClick={() => {
           if (folder) {
             openFolder(item);
-          } else if (video) {
-            openVideo(item);
           } else if (pdf) {
             openPdf(item);
+          } else if (video) {
+            openVideo(item);
           } else if (test) {
             openTest(item);
           } else {
@@ -886,10 +990,10 @@ export default function PrepMasterApp() {
           <div className="pm-content-meta">
             {folder
               ? 'Folder'
-              : video
-              ? 'Video'
               : pdf
               ? 'Notes / PDF'
+              : video
+              ? 'Video'
               : test
               ? 'Test'
               : 'Content'}

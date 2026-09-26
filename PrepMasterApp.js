@@ -10,6 +10,7 @@ function getId(item) {
       item?.id ??
       item?.data?.id ??
       item?.course_id ??
+      item?.data?.course_id ??
       ''
   );
 }
@@ -59,11 +60,24 @@ function getBatchImage(batch) {
   );
 }
 
+/*
+ * FOLDER DETECTION
+ *
+ * API response me content_counts direct aa sakta hai:
+ *
+ * content_counts: {
+ *   folders: {
+ *     total: 4
+ *   }
+ * }
+ */
 function isFolder(item) {
   return (
     item?.type === 'folder' ||
+    item?.content_counts?.folders?.total > 0 ||
     item?.data?.content_counts?.folders?.total > 0 ||
-    Boolean(item?.data?.folders)
+    Array.isArray(item?.folders) ||
+    Array.isArray(item?.data?.folders)
   );
 }
 
@@ -85,6 +99,11 @@ function getVideoType(item) {
   );
 }
 
+/*
+ * CONTENT URL
+ *
+ * API different fields me URL de sakti hai.
+ */
 function getContentUrl(item) {
   return (
     item?.file_url ||
@@ -542,12 +561,30 @@ export default function PrepMasterApp() {
         );
       }
 
-      setContentItems(
-        Array.isArray(json?.data)
-          ? json.data
-          : []
-      );
+      const items = Array.isArray(
+        json?.data
+      )
+        ? json.data
+        : [];
+
+      setContentItems(items);
+
+      if (!items.length) {
+        console.log(
+          'Prep Master: API returned no items',
+          {
+            courseId,
+            folderId,
+            response: json,
+          }
+        );
+      }
     } catch (error) {
+      console.error(
+        'Content loading error:',
+        error
+      );
+
       setContentItems([]);
 
       setContentError(
@@ -563,6 +600,13 @@ export default function PrepMasterApp() {
     if (!selectedBatch) return;
 
     const folderId = getId(folder);
+
+    if (!folderId) {
+      setContentError(
+        'Folder ID unavailable.'
+      );
+      return;
+    }
 
     setFolderStack((prev) => [
       ...prev,
@@ -622,11 +666,13 @@ export default function PrepMasterApp() {
   /*
    * VIDEO PLAYBACK
    *
-   * 1. Agar content API already .m3u8/.mpd URL
-   *    deta hai -> direct ShakaPlayer.
+   * Direct authorized HLS/DASH URL:
+   *   -> ShakaPlayer
    *
-   * 2. Agar direct URL nahi hai -> /api/playback
-   *    se authorized playback URL maangta hai.
+   * Otherwise:
+   *   -> /api/playback
+   *   -> authorized playback URL
+   *   -> ShakaPlayer
    */
   async function openVideo(item) {
     if (!selectedBatch) return;
@@ -641,7 +687,7 @@ export default function PrepMasterApp() {
 
     try {
       /*
-       * YouTube video
+       * YouTube
        */
       if (isYouTubeUrl(directUrl)) {
         setPlayer({
@@ -654,7 +700,7 @@ export default function PrepMasterApp() {
       }
 
       /*
-       * Direct HLS/DASH video
+       * HLS / DASH
        */
       if (
         isHlsOrDashUrl(directUrl)
@@ -669,7 +715,7 @@ export default function PrepMasterApp() {
       }
 
       /*
-       * Direct MP4/WebM
+       * MP4 / WebM
        */
       if (
         /\.(mp4|webm)(\?|$)/i.test(
@@ -687,8 +733,7 @@ export default function PrepMasterApp() {
 
       /*
        * No direct URL.
-       * Ask our own backend for the authorized
-       * playback URL.
+       * Ask our backend for an authorized URL.
        */
       const contentId = getId(item);
 
@@ -737,6 +782,9 @@ export default function PrepMasterApp() {
         json?.decryptedData
           ?.file_url ||
         json?.data
+          ?.decryptedData
+          ?.file_url ||
+        json?.data?.data
           ?.decryptedData
           ?.file_url ||
         '';
@@ -1090,11 +1138,19 @@ export default function PrepMasterApp() {
   ) {
     const folder =
       isFolder(item);
+
     const pdf =
-      isPdf(item);
+      !folder && isPdf(item);
+
     const video =
-      !pdf && isVideo(item);
+      !folder &&
+      !pdf &&
+      isVideo(item);
+
     const test =
+      !folder &&
+      !pdf &&
+      !video &&
       isTest(item);
 
     let icon = '📄';

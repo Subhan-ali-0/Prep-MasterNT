@@ -1,15 +1,18 @@
 import { NextResponse } from 'next/server';
 
-const SOURCE = 'https://nt.studybeepro.site/api/nig';
+const SOURCE =
+  'https://nexttoppers.asmultiverse.in/api/nig';
 
 async function fetchJSON(url) {
   const response = await fetch(url, {
-    next: {
-      revalidate: 60,
-    },
+    cache: 'no-store',
     headers: {
-      Accept: 'application/json, text/plain, */*',
-      'User-Agent': 'Mozilla/5.0',
+      Accept:
+        'application/json, text/plain, */*',
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36',
+      Referer:
+        'https://nexttoppers.asmultiverse.in/',
     },
   });
 
@@ -57,12 +60,6 @@ export async function GET(req) {
       );
     }
 
-    /*
-     * IMPORTANT:
-     * Date.now() intentionally removed.
-     * This allows Next.js/Vercel caching.
-     */
-
     const url =
       `${SOURCE}?content=${encodeURIComponent(
         content
@@ -71,10 +68,6 @@ export async function GET(req) {
 
     let result = await fetchJSON(url);
 
-    /*
-     * Retry only if the upstream response
-     * was invalid JSON.
-     */
     if (!result.data) {
       await new Promise((resolve) =>
         setTimeout(resolve, 300)
@@ -109,11 +102,10 @@ export async function GET(req) {
       );
     }
 
-    const contentData = Array.isArray(
-      result.data?.data
-    )
-      ? result.data.data
-      : [];
+    const contentData =
+      Array.isArray(result.data?.data)
+        ? result.data.data
+        : [];
 
     return NextResponse.json(
       {
@@ -132,6 +124,11 @@ export async function GET(req) {
       }
     );
   } catch (error) {
+    console.error(
+      'Content API error:',
+      error
+    );
+
     return NextResponse.json(
       {
         success: false,

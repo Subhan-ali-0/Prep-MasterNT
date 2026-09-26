@@ -2,7 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-export default function ShakaPlayer({ url, title = 'Video', onClose }) {
+export default function ShakaPlayer({
+  url,
+  title = 'Video',
+  onClose,
+}) {
   const videoRef = useRef(null);
   const playerRef = useRef(null);
 
@@ -12,32 +16,74 @@ export default function ShakaPlayer({ url, title = 'Video', onClose }) {
   useEffect(() => {
     let cancelled = false;
 
-    async function init() {
+    async function initPlayer() {
       try {
         setLoading(true);
         setError('');
 
-        const shaka = await import('shaka-player/dist/shaka-player.compiled.js');
-
-        if (cancelled || !videoRef.current) return;
-
-        shaka.default.polyfill();
-
-        if (!shaka.default.Player.isBrowserSupported()) {
-          throw new Error('Shaka Player browser me supported nahi hai.');
+        if (!url) {
+          throw new Error(
+            'Video URL available nahi hai.'
+          );
         }
 
-        const player = new shaka.default.Player(videoRef.current);
+        const shakaModule = await import(
+          'shaka-player/dist/shaka-player.compiled.js'
+        );
+
+        const shaka =
+          shakaModule.default ??
+          shakaModule;
+
+        if (cancelled) return;
+
+        shaka.polyfill();
+
+        if (
+          !shaka.Player.isBrowserSupported()
+        ) {
+          throw new Error(
+            'Shaka Player is browser me supported nahi hai.'
+          );
+        }
+
+        if (!videoRef.current) {
+          throw new Error(
+            'Video element unavailable.'
+          );
+        }
+
+        const player =
+          new shaka.Player(
+            videoRef.current
+          );
 
         playerRef.current = player;
 
-        player.addEventListener('error', (event) => {
-          console.error('Shaka error:', event.detail);
-          setError(
-            event.detail?.message ||
-            `Video playback error (${event.detail?.code || 'unknown'})`
-          );
-        });
+        player.addEventListener(
+          'error',
+          (event) => {
+            const detail = event?.detail;
+
+            console.error(
+              'Shaka Player error:',
+              detail
+            );
+
+            const code =
+              detail?.code ??
+              'unknown';
+
+            const message =
+              detail?.message ||
+              `Video playback error (${code})`;
+
+            if (!cancelled) {
+              setError(message);
+              setLoading(false);
+            }
+          }
+        );
 
         await player.load(url);
 
@@ -45,25 +91,39 @@ export default function ShakaPlayer({ url, title = 'Video', onClose }) {
           setLoading(false);
         }
       } catch (err) {
-        console.error('Shaka Player:', err);
+        console.error(
+          'Shaka Player initialization error:',
+          err
+        );
 
         if (!cancelled) {
           setLoading(false);
-          setError(err?.message || 'Video load nahi ho saka.');
+          setError(
+            err?.message ||
+              'Video load nahi ho saka.'
+          );
         }
       }
     }
 
-    if (url) {
-      init();
-    }
+    initPlayer();
 
     return () => {
       cancelled = true;
 
-      if (playerRef.current) {
-        playerRef.current.destroy().catch(() => {});
-        playerRef.current = null;
+      const player = playerRef.current;
+
+      playerRef.current = null;
+
+      if (player) {
+        player
+          .destroy()
+          .catch((err) => {
+            console.error(
+              'Shaka destroy error:',
+              err
+            );
+          });
       }
     };
   }, [url]);
@@ -71,7 +131,13 @@ export default function ShakaPlayer({ url, title = 'Video', onClose }) {
   return (
     <div className="pm-video-player">
       <div className="pm-video-header">
-        <button onClick={onClose}>←</button>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close video"
+        >
+          ←
+        </button>
 
         <div className="pm-video-title">
           {title}
@@ -81,13 +147,38 @@ export default function ShakaPlayer({ url, title = 'Video', onClose }) {
       <div className="pm-video-container">
         {loading && (
           <div className="pm-video-loading">
-            Loading video...
+            <div>🎥</div>
+            <span>
+              Loading video...
+            </span>
           </div>
         )}
 
         {error && (
           <div className="pm-video-error">
-            {error}
+            <div className="pm-video-error-icon">
+              ⚠️
+            </div>
+
+            <h3>
+              Unable to play video
+            </h3>
+
+            <p>{error}</p>
+
+            <button
+              type="button"
+              className="pm-secondary"
+              onClick={() =>
+                window.open(
+                  url,
+                  '_blank',
+                  'noopener,noreferrer'
+                )
+              }
+            >
+              Open Video
+            </button>
           </div>
         )}
 
@@ -96,6 +187,7 @@ export default function ShakaPlayer({ url, title = 'Video', onClose }) {
           className="pm-video-element"
           controls
           playsInline
+          preload="metadata"
         />
       </div>
     </div>

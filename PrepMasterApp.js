@@ -39,11 +39,7 @@ function getPrice(item) {
     item?.data?.price ??
     '';
 
-  if (
-    price === '' ||
-    price === null ||
-    price === undefined
-  ) {
+  if (price === '' || price == null) {
     return 'FREE';
   }
 
@@ -332,10 +328,7 @@ function getOptions(question) {
     });
   }
 
-  if (
-    options &&
-    typeof options === 'object'
-  ) {
+  if (options && typeof options === 'object') {
     return Object.entries(options).map(
       ([key, value]) => ({
         key,
@@ -353,63 +346,99 @@ function getOptions(question) {
   return [];
 }
 
+function stripHtml(html = '') {
+  return String(html)
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function findOverviewDetails(json) {
+  const overview = Array.isArray(json?.data)
+    ? json.data.find(
+        (item) =>
+          item?.type === 'overview' ||
+          item?.title?.toLowerCase() === 'overview'
+      )
+    : null;
+
+  if (!overview) return null;
+
+  const layouts = Array.isArray(overview.data)
+    ? overview.data
+    : [];
+
+  const detailsLayout = layouts.find(
+    (item) =>
+      item?.layout_type === 'details' ||
+      item?.layout_title?.toLowerCase() === 'details'
+  );
+
+  const detail =
+    Array.isArray(detailsLayout?.layout_data)
+      ? detailsLayout.layout_data[0]
+      : null;
+
+  return {
+    overview,
+    detail,
+    layouts,
+  };
+}
+
 export default function PrepMasterApp() {
   const [page, setPage] = useState('home');
 
   const [batches, setBatches] = useState([]);
-  const [loadingBatches, setLoadingBatches] =
-    useState(true);
-  const [batchError, setBatchError] =
-    useState('');
+  const [loadingBatches, setLoadingBatches] = useState(true);
+  const [batchError, setBatchError] = useState('');
 
   const [search, setSearch] = useState('');
 
   const [enrolled, setEnrolled] = useState([]);
-  const [selectedBatch, setSelectedBatch] =
-    useState(null);
+  const [selectedBatch, setSelectedBatch] = useState(null);
 
-  const [contentItems, setContentItems] =
-    useState([]);
-  const [contentLoading, setContentLoading] =
-    useState(false);
-  const [contentError, setContentError] =
-    useState('');
+  const [activeTab, setActiveTab] = useState('overview');
 
-  const [currentFolder, setCurrentFolder] =
-    useState(null);
-  const [folderStack, setFolderStack] =
-    useState([]);
+  const [contentItems, setContentItems] = useState([]);
+  const [contentLoading, setContentLoading] = useState(false);
+  const [contentError, setContentError] = useState('');
+
+  const [currentFolder, setCurrentFolder] = useState(null);
+  const [folderStack, setFolderStack] = useState([]);
+
+  const [overview, setOverview] = useState(null);
+  const [overviewLoading, setOverviewLoading] = useState(false);
+  const [overviewError, setOverviewError] = useState('');
+
+  const [liveClasses, setLiveClasses] = useState([]);
+  const [liveLoading, setLiveLoading] = useState(false);
+  const [liveError, setLiveError] = useState('');
 
   const [player, setPlayer] = useState(null);
-  const [playerLoading, setPlayerLoading] =
-    useState(false);
-  const [playerError, setPlayerError] =
-    useState('');
+  const [playerLoading, setPlayerLoading] = useState(false);
+  const [playerError, setPlayerError] = useState('');
 
-  const [menuOpen, setMenuOpen] =
-    useState(false);
-  const [enrollPopup, setEnrollPopup] =
-    useState(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [enrollPopup, setEnrollPopup] = useState(null);
 
-  const [testLoading, setTestLoading] =
-    useState(false);
-  const [testError, setTestError] =
-    useState('');
-  const [activeTest, setActiveTest] =
-    useState(null);
-  const [testQuestions, setTestQuestions] =
-    useState([]);
-  const [testAnswers, setTestAnswers] =
-    useState({});
-  const [testResult, setTestResult] =
-    useState(null);
+  const [testLoading, setTestLoading] = useState(false);
+  const [testError, setTestError] = useState('');
+  const [activeTest, setActiveTest] = useState(null);
+  const [testQuestions, setTestQuestions] = useState([]);
+  const [testAnswers, setTestAnswers] = useState({});
+  const [testResult, setTestResult] = useState(null);
 
   useEffect(() => {
     try {
       const saved = JSON.parse(
-        localStorage.getItem(
-          'pm_enrolled'
-        ) || '[]'
+        localStorage.getItem('pm_enrolled') || '[]'
       );
 
       if (Array.isArray(saved)) {
@@ -438,20 +467,15 @@ export default function PrepMasterApp() {
     setBatchError('');
 
     try {
-      const response = await fetch(
-        '/api/batches',
-        { cache: 'no-store' }
-      );
+      const response = await fetch('/api/batches', {
+        cache: 'no-store',
+      });
 
       const json = await response.json();
 
-      if (
-        !response.ok ||
-        !json?.success
-      ) {
+      if (!response.ok || !json?.success) {
         throw new Error(
-          json?.error ||
-            'Unable to load batches.'
+          json?.error || 'Unable to load batches.'
         );
       }
 
@@ -462,8 +486,7 @@ export default function PrepMasterApp() {
       );
     } catch (error) {
       setBatchError(
-        error?.message ||
-          'Unable to load batches.'
+        error?.message || 'Unable to load batches.'
       );
     } finally {
       setLoadingBatches(false);
@@ -474,9 +497,7 @@ export default function PrepMasterApp() {
     const id = getId(batch);
 
     return enrolled.some(
-      (item) =>
-        String(getId(item)) ===
-        String(id)
+      (item) => String(getId(item)) === String(id)
     );
   }
 
@@ -484,10 +505,7 @@ export default function PrepMasterApp() {
     if (!batch) return;
 
     if (!isEnrolled(batch)) {
-      setEnrolled((prev) => [
-        ...prev,
-        batch,
-      ]);
+      setEnrolled((prev) => [...prev, batch]);
     }
 
     setEnrollPopup(batch);
@@ -495,24 +513,67 @@ export default function PrepMasterApp() {
 
   function openBatch(batch) {
     setSelectedBatch(batch);
+
+    setActiveTab('overview');
+
     setCurrentFolder(null);
     setFolderStack([]);
+
     setContentItems([]);
     setContentError('');
+
+    setOverview(null);
+    setOverviewError('');
+
+    setLiveClasses([]);
+    setLiveError('');
+
     setPlayer(null);
     setPlayerError('');
+
     setPage('batch');
 
-    loadContent(
-      getId(batch),
-      '0'
-    );
+    loadOverview(getId(batch));
   }
 
-  async function loadContent(
-    courseId,
-    folderId = '0'
-  ) {
+  async function loadOverview(courseId) {
+    if (!courseId) return;
+
+    setOverviewLoading(true);
+    setOverviewError('');
+
+    try {
+      const response = await fetch(
+        `/api/overview?course=${encodeURIComponent(
+          courseId
+        )}`,
+        { cache: 'no-store' }
+      );
+
+      const json = await response.json();
+
+      if (!response.ok || !json?.success) {
+        throw new Error(
+          json?.error || 'Unable to load overview.'
+        );
+      }
+
+      const parsed = findOverviewDetails(json);
+
+      setOverview(parsed);
+    } catch (error) {
+      console.error('Overview loading error:', error);
+
+      setOverview(null);
+      setOverviewError(
+        error?.message || 'Unable to load overview.'
+      );
+    } finally {
+      setOverviewLoading(false);
+    }
+  }
+
+  async function loadContent(courseId, folderId = '0') {
     if (!courseId) return;
 
     setContentLoading(true);
@@ -522,36 +583,23 @@ export default function PrepMasterApp() {
       const response = await fetch(
         `/api/content?content=${encodeURIComponent(
           courseId
-        )}&folder=${encodeURIComponent(
-          folderId
-        )}`,
+        )}&folder=${encodeURIComponent(folderId)}`,
         { cache: 'no-store' }
       );
 
       const json = await response.json();
 
-      if (
-        !response.ok ||
-        !json?.success
-      ) {
+      if (!response.ok || !json?.success) {
         throw new Error(
-          json?.error ||
-            'Unable to load content.'
+          json?.error || 'Unable to load content.'
         );
       }
 
-      const items = Array.isArray(
-        json?.data
-      )
-        ? json.data
-        : [];
-
-      setContentItems(items);
-    } catch (error) {
-      console.error(
-        'Content loading error:',
-        error
+      setContentItems(
+        Array.isArray(json?.data) ? json.data : []
       );
+    } catch (error) {
+      console.error('Content loading error:', error);
 
       setContentItems([]);
 
@@ -564,15 +612,80 @@ export default function PrepMasterApp() {
     }
   }
 
+  async function loadLiveClasses(courseId) {
+    if (!courseId) return;
+
+    setLiveLoading(true);
+    setLiveError('');
+
+    try {
+      const response = await fetch(
+        `/api/live-classes?course=${encodeURIComponent(
+          courseId
+        )}`,
+        { cache: 'no-store' }
+      );
+
+      const json = await response.json();
+
+      if (!response.ok || !json?.success) {
+        throw new Error(
+          json?.error || 'Unable to load live classes.'
+        );
+      }
+
+      const data =
+        json?.classes ??
+        json?.data ??
+        [];
+
+      setLiveClasses(
+        Array.isArray(data) ? data : []
+      );
+    } catch (error) {
+      console.error(
+        'Live classes loading error:',
+        error
+      );
+
+      setLiveClasses([]);
+
+      setLiveError(
+        error?.message ||
+          'Unable to load live classes.'
+      );
+    } finally {
+      setLiveLoading(false);
+    }
+  }
+
+  function selectTab(tab) {
+    setActiveTab(tab);
+
+    if (!selectedBatch) return;
+
+    const courseId = getId(selectedBatch);
+
+    if (tab === 'overview' && !overview) {
+      loadOverview(courseId);
+    }
+
+    if (tab === 'content' && contentItems.length === 0) {
+      loadContent(courseId, '0');
+    }
+
+    if (tab === 'live' && liveClasses.length === 0) {
+      loadLiveClasses(courseId);
+    }
+  }
+
   function openFolder(folder) {
     if (!selectedBatch) return;
 
     const folderId = getId(folder);
 
     if (!folderId) {
-      setContentError(
-        'Folder ID unavailable.'
-      );
+      setContentError('Folder ID unavailable.');
       return;
     }
 
@@ -586,10 +699,7 @@ export default function PrepMasterApp() {
 
     setCurrentFolder(folder);
 
-    loadContent(
-      getId(selectedBatch),
-      folderId
-    );
+    loadContent(getId(selectedBatch), folderId);
   }
 
   function goBackFolder() {
@@ -598,13 +708,11 @@ export default function PrepMasterApp() {
     if (folderStack.length === 0) {
       setCurrentFolder(null);
       setContentItems([]);
-      setPage('home');
+      setActiveTab('overview');
       return;
     }
 
-    const nextStack = [
-      ...folderStack,
-    ];
+    const nextStack = [...folderStack];
 
     nextStack.pop();
 
@@ -612,23 +720,16 @@ export default function PrepMasterApp() {
 
     const parentId =
       nextStack.length > 0
-        ? nextStack[
-            nextStack.length - 1
-          ].id
+        ? nextStack[nextStack.length - 1].id
         : '0';
 
     setCurrentFolder(
       nextStack.length > 0
-        ? nextStack[
-            nextStack.length - 1
-          ]
+        ? nextStack[nextStack.length - 1]
         : null
     );
 
-    loadContent(
-      getId(selectedBatch),
-      parentId
-    );
+    loadContent(getId(selectedBatch), parentId);
   }
 
   async function openVideo(item) {
@@ -664,19 +765,14 @@ export default function PrepMasterApp() {
       }
 
       const contentId = getId(item);
-      const courseId =
-        getId(selectedBatch);
+      const courseId = getId(selectedBatch);
 
       if (!contentId) {
-        throw new Error(
-          'Video ID unavailable.'
-        );
+        throw new Error('Video ID unavailable.');
       }
 
       if (!courseId) {
-        throw new Error(
-          'Course ID unavailable.'
-        );
+        throw new Error('Course ID unavailable.');
       }
 
       const response = await fetch(
@@ -688,30 +784,20 @@ export default function PrepMasterApp() {
         { cache: 'no-store' }
       );
 
-      const json =
-        await response.json();
+      const json = await response.json();
 
-      if (
-        !response.ok ||
-        !json?.success
-      ) {
+      if (!response.ok || !json?.success) {
         throw new Error(
-          json?.error ||
-            'Unable to load video.'
+          json?.error || 'Unable to load video.'
         );
       }
 
       const playableUrl =
         json?.url ||
         json?.data?.url ||
-        json?.decryptedData
-          ?.file_url ||
-        json?.data
-          ?.decryptedData
-          ?.file_url ||
-        json?.data?.data
-          ?.decryptedData
-          ?.file_url ||
+        json?.decryptedData?.file_url ||
+        json?.data?.decryptedData?.file_url ||
+        json?.data?.data?.decryptedData?.file_url ||
         '';
 
       if (!playableUrl) {
@@ -720,34 +806,48 @@ export default function PrepMasterApp() {
         );
       }
 
-      if (
-        isYouTubeUrl(playableUrl)
-      ) {
-        setPlayer({
-          type: 'youtube',
-          title: getTitle(item),
-          url: playableUrl,
-        });
-      } else {
-        setPlayer({
-          type: 'video',
-          title: getTitle(item),
-          url: playableUrl,
-        });
-      }
+      setPlayer({
+        type: isYouTubeUrl(playableUrl)
+          ? 'youtube'
+          : 'video',
+        title: getTitle(item),
+        url: playableUrl,
+      });
     } catch (error) {
-      console.error(
-        'Video playback error:',
-        error
-      );
+      console.error('Video playback error:', error);
 
       setPlayerError(
-        error?.message ||
-          'Unable to load video.'
+        error?.message || 'Unable to load video.'
       );
     } finally {
       setPlayerLoading(false);
     }
+  }
+
+  function openLiveClass(item) {
+    const url =
+      item?.url ??
+      item?.live_url ??
+      item?.stream_url ??
+      item?.join_url ??
+      item?.data?.url ??
+      item?.data?.live_url ??
+      item?.data?.stream_url ??
+      item?.data?.join_url ??
+      '';
+
+    if (!url) {
+      setPlayerError(
+        'Live class ka authorized URL available nahi hai.'
+      );
+      return;
+    }
+
+    setPlayer({
+      type: isYouTubeUrl(url) ? 'youtube' : 'video',
+      title: getTitle(item),
+      url: String(url),
+    });
   }
 
   function openPdf(item) {
@@ -770,8 +870,7 @@ export default function PrepMasterApp() {
   }
 
   async function openTest(item) {
-    const testId =
-      extractTestId(item);
+    const testId = extractTestId(item);
 
     if (!testId) {
       alert('Test ID unavailable.');
@@ -798,27 +897,18 @@ export default function PrepMasterApp() {
         { cache: 'no-store' }
       );
 
-      const json =
-        await response.json();
+      const json = await response.json();
 
-      if (
-        !response.ok ||
-        !json?.success
-      ) {
+      if (!response.ok || !json?.success) {
         throw new Error(
           json?.error ||
             `Test source returned HTTP ${response.status}`
         );
       }
 
-      const questions =
-        getTestQuestions(
-          json?.data
-        );
+      const questions = getTestQuestions(json?.data);
 
-      setTestQuestions(
-        questions
-      );
+      setTestQuestions(questions);
 
       if (!questions.length) {
         setTestError(
@@ -849,27 +939,18 @@ export default function PrepMasterApp() {
         { cache: 'no-store' }
       );
 
-      const json =
-        await response.json();
+      const json = await response.json();
 
-      if (
-        !response.ok ||
-        !json?.success
-      ) {
+      if (!response.ok || !json?.success) {
         throw new Error(
           json?.error ||
             `Test source returned HTTP ${response.status}`
         );
       }
 
-      const questions =
-        getTestQuestions(
-          json?.data
-        );
+      const questions = getTestQuestions(json?.data);
 
-      setTestQuestions(
-        questions
-      );
+      setTestQuestions(questions);
       setTestAnswers({});
       setTestResult(null);
 
@@ -889,42 +970,33 @@ export default function PrepMasterApp() {
   }
 
   function submitLocalTest() {
-    if (!testQuestions.length)
-      return;
+    if (!testQuestions.length) return;
 
     let correct = 0;
 
-    testQuestions.forEach(
-      (question, index) => {
-        const selected =
-          testAnswers[index];
+    testQuestions.forEach((question, index) => {
+      const selected = testAnswers[index];
 
-        const answer =
-          question?.correct_answer ??
-          question?.correctAnswer ??
-          question?.answer ??
-          question?.data
-            ?.correct_answer ??
-          question?.data
-            ?.correctAnswer;
+      const answer =
+        question?.correct_answer ??
+        question?.correctAnswer ??
+        question?.answer ??
+        question?.data?.correct_answer ??
+        question?.data?.correctAnswer;
 
-        if (
-          selected != null &&
-          answer != null &&
-          String(selected)
-            .toLowerCase() ===
-            String(answer)
-              .toLowerCase()
-        ) {
-          correct += 1;
-        }
+      if (
+        selected != null &&
+        answer != null &&
+        String(selected).toLowerCase() ===
+          String(answer).toLowerCase()
+      ) {
+        correct += 1;
       }
-    );
+    });
 
     setTestResult({
       correct,
-      total:
-        testQuestions.length,
+      total: testQuestions.length,
     });
   }
 
@@ -941,44 +1013,34 @@ export default function PrepMasterApp() {
     setTestResult(null);
   }
 
-  const filteredBatches =
-    useMemo(() => {
-      const q = search
-        .trim()
+  const filteredBatches = useMemo(() => {
+    const q = search.trim().toLowerCase();
+
+    if (!q) return batches;
+
+    return batches.filter((batch) => {
+      const text = [
+        batch?.title,
+        batch?.description,
+      ]
+        .filter(Boolean)
+        .join(' ')
         .toLowerCase();
 
-      if (!q) return batches;
+      return text.includes(q);
+    });
+  }, [batches, search]);
 
-      return batches.filter(
-        (batch) => {
-          const text = [
-            batch?.title,
-            batch?.description,
-          ]
-            .filter(Boolean)
-            .join(' ')
-            .toLowerCase();
-
-          return text.includes(q);
-        }
-      );
-    }, [batches, search]);
-
-  const enrolledBatches =
-    useMemo(
-      () => enrolled,
-      [enrolled]
-    );
+  const enrolledBatches = useMemo(
+    () => enrolled,
+    [enrolled]
+  );
 
   function renderBatchCard(batch) {
-    const enrolledNow =
-      isEnrolled(batch);
+    const enrolledNow = isEnrolled(batch);
 
     return (
-      <div
-        className="pm-card"
-        key={getId(batch)}
-      >
+      <div className="pm-card" key={getId(batch)}>
         {getBatchImage(batch) ? (
           <img
             className="pm-card-image"
@@ -994,19 +1056,14 @@ export default function PrepMasterApp() {
         )}
 
         <div className="pm-card-body">
-          <h3>
-            {getTitle(batch)}
-          </h3>
+          <h3>{getTitle(batch)}</h3>
 
           {getDescription(batch) && (
-            <p>
-              {getDescription(batch)}
-            </p>
+            <p>{stripHtml(getDescription(batch))}</p>
           )}
 
           <div className="pm-price">
-            {getPrice(batch) ===
-            'FREE'
+            {getPrice(batch) === 'FREE'
               ? 'FREE'
               : `₹${getPrice(batch)}`}
           </div>
@@ -1014,9 +1071,7 @@ export default function PrepMasterApp() {
           <div className="pm-card-actions">
             <button
               className="pm-secondary"
-              onClick={() =>
-                openBatch(batch)
-              }
+              onClick={() => openBatch(batch)}
             >
               Study
             </button>
@@ -1029,9 +1084,7 @@ export default function PrepMasterApp() {
                   : enrollBatch(batch)
               }
             >
-              {enrolledNow
-                ? 'Enrolled'
-                : 'Enroll'}
+              {enrolledNow ? 'Enrolled' : 'Enroll'}
             </button>
           </div>
         </div>
@@ -1039,21 +1092,11 @@ export default function PrepMasterApp() {
     );
   }
 
-  function renderContentItem(
-    item,
-    index
-  ) {
-    const folder =
-      isFolder(item);
-
-    const pdf =
-      !folder && isPdf(item);
-
+  function renderContentItem(item, index) {
+    const folder = isFolder(item);
+    const pdf = !folder && isPdf(item);
     const video =
-      !folder &&
-      !pdf &&
-      isVideo(item);
-
+      !folder && !pdf && isVideo(item);
     const test =
       !folder &&
       !pdf &&
@@ -1116,6 +1159,293 @@ export default function PrepMasterApp() {
     );
   }
 
+  function OverviewTab() {
+    if (overviewLoading) {
+      return (
+        <div className="pm-state">
+          Loading overview...
+        </div>
+      );
+    }
+
+    if (overviewError) {
+      return (
+        <div className="pm-error">
+          {overviewError}
+
+          <button
+            className="pm-primary pm-small-button"
+            onClick={() =>
+              loadOverview(getId(selectedBatch))
+            }
+          >
+            Retry
+          </button>
+        </div>
+      );
+    }
+
+    const detail = overview?.detail;
+
+    if (!detail) {
+      return (
+        <div className="pm-empty">
+          <div>📋</div>
+          <h3>Overview unavailable</h3>
+          <p>
+            Is batch ke liye overview details nahi mili.
+          </p>
+        </div>
+      );
+    }
+
+    const description =
+      detail?.description || '';
+
+    return (
+      <div className="pm-overview">
+        {detail?.thumbnail && (
+          <img
+            src={detail.thumbnail}
+            alt={detail.title || 'Batch'}
+            className="pm-overview-image"
+          />
+        )}
+
+        <div className="pm-overview-card">
+          <h2>{detail.title}</h2>
+
+          <div className="pm-overview-price-row">
+            {detail.offer_price && (
+              <strong>
+                ₹{detail.offer_price}
+              </strong>
+            )}
+
+            {detail.mrp && (
+              <span className="pm-mrp">
+                ₹{detail.mrp}
+              </span>
+            )}
+
+            {detail.discount_percentage != null && (
+              <span className="pm-discount">
+                {detail.discount_percentage}% OFF
+              </span>
+            )}
+          </div>
+
+          {(detail.is_new ||
+            detail.is_trending) && (
+            <div className="pm-badges">
+              {detail.is_new && (
+                <span className="pm-badge">
+                  {detail.is_new}
+                </span>
+              )}
+
+              {detail.is_trending && (
+                <span className="pm-badge">
+                  {detail.is_trending}
+                </span>
+              )}
+            </div>
+          )}
+
+          <div
+            className="pm-overview-description"
+            dangerouslySetInnerHTML={{
+              __html: description,
+            }}
+          />
+        </div>
+
+        <div className="pm-overview-card">
+          <h3>Course Details</h3>
+
+          <div className="pm-detail-grid">
+            <div>
+              <span>Course</span>
+              <strong>{detail.title}</strong>
+            </div>
+
+            {detail.start_date && (
+              <div>
+                <span>Start</span>
+                <strong>
+                  {new Date(
+                    Number(detail.start_date) * 1000
+                  ).toLocaleDateString()}
+                </strong>
+              </div>
+            )}
+
+            {detail.end_date && (
+              <div>
+                <span>End</span>
+                <strong>
+                  {new Date(
+                    Number(detail.end_date) * 1000
+                  ).toLocaleDateString()}
+                </strong>
+              </div>
+            )}
+
+            {detail.average_rating != null && (
+              <div>
+                <span>Rating</span>
+                <strong>
+                  ⭐ {detail.average_rating}
+                </strong>
+              </div>
+            )}
+
+            {detail.review_count != null && (
+              <div>
+                <span>Reviews</span>
+                <strong>
+                  {detail.review_count}
+                </strong>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function ContentTab() {
+    return (
+      <>
+        {currentFolder && (
+          <div className="pm-folder-bar">
+            <button
+              className="pm-back-button"
+              onClick={goBackFolder}
+            >
+              ← Back
+            </button>
+
+            <strong>
+              {getTitle(currentFolder)}
+            </strong>
+          </div>
+        )}
+
+        {contentLoading ? (
+          <div className="pm-state">
+            Loading content...
+          </div>
+        ) : contentError ? (
+          <div className="pm-error">
+            {contentError}
+
+            <button
+              className="pm-primary pm-small-button"
+              onClick={() =>
+                loadContent(
+                  getId(selectedBatch),
+                  currentFolder
+                    ? getId(currentFolder)
+                    : '0'
+                )
+              }
+            >
+              Retry
+            </button>
+          </div>
+        ) : contentItems.length === 0 ? (
+          <div className="pm-empty">
+            <div>📚</div>
+            <h3>No content found</h3>
+            <p>
+              Is section me abhi content available nahi hai.
+            </p>
+          </div>
+        ) : (
+          <div className="pm-content-list">
+            {contentItems.map(
+              renderContentItem
+            )}
+          </div>
+        )}
+      </>
+    );
+  }
+
+  function LiveClassesTab() {
+    if (liveLoading) {
+      return (
+        <div className="pm-state">
+          Loading live classes...
+        </div>
+      );
+    }
+
+    if (liveError) {
+      return (
+        <div className="pm-error">
+          {liveError}
+
+          <button
+            className="pm-primary pm-small-button"
+            onClick={() =>
+              loadLiveClasses(
+                getId(selectedBatch)
+              )
+            }
+          >
+            Retry
+          </button>
+        </div>
+      );
+    }
+
+    if (!liveClasses.length) {
+      return (
+        <div className="pm-empty">
+          <div>🔴</div>
+          <h3>No live classes</h3>
+          <p>
+            Abhi koi live class available nahi hai.
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="pm-content-list">
+        {liveClasses.map((item, index) => (
+          <div
+            className="pm-content-item"
+            key={`${getId(item)}-${index}`}
+            onClick={() => openLiveClass(item)}
+          >
+            <div className="pm-content-icon">
+              🔴
+            </div>
+
+            <div className="pm-content-info">
+              <div className="pm-content-title">
+                {getTitle(item)}
+              </div>
+
+              <div className="pm-content-meta">
+                {item?.status ||
+                  item?.data?.status ||
+                  'Live Class'}
+              </div>
+            </div>
+
+            <div className="pm-content-arrow">
+              →
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   function HomePage() {
     return (
       <>
@@ -1149,9 +1479,7 @@ export default function PrepMasterApp() {
         <div className="pm-section-head">
           <h2>Batches</h2>
 
-          <button
-            onClick={loadBatches}
-          >
+          <button onClick={loadBatches}>
             ↻
           </button>
         </div>
@@ -1184,19 +1512,14 @@ export default function PrepMasterApp() {
       <>
         <div className="pm-page-title">
           <h1>My Batches</h1>
-
-          <p>
-            Your enrolled batches
-          </p>
+          <p>Your enrolled batches</p>
         </div>
 
         {enrolledBatches.length === 0 ? (
           <div className="pm-empty">
             <div>📚</div>
 
-            <h3>
-              No enrolled batches
-            </h3>
+            <h3>No enrolled batches</h3>
 
             <p>
               Enroll in a batch
@@ -1223,10 +1546,111 @@ export default function PrepMasterApp() {
     );
   }
 
-  function ComingSoon({
-    title,
-    icon,
-  }) {
+  function BatchPage() {
+    const detail =
+      overview?.detail;
+
+    return (
+      <>
+        <div className="pm-batch-header">
+          <button
+            className="pm-back-button"
+            onClick={() => {
+              if (currentFolder) {
+                goBackFolder();
+              } else {
+                setPage('home');
+              }
+            }}
+          >
+            ← Back
+          </button>
+
+          {detail?.thumbnail ||
+          getBatchImage(selectedBatch) ? (
+            <img
+              src={
+                detail?.thumbnail ||
+                getBatchImage(selectedBatch)
+              }
+              alt={getTitle(selectedBatch)}
+              className="pm-batch-banner"
+            />
+          ) : null}
+
+          <div className="pm-batch-heading">
+            <h1>
+              {detail?.title ||
+                getTitle(selectedBatch)}
+            </h1>
+
+            <p>
+              {currentFolder
+                ? getTitle(currentFolder)
+                : 'Course'}
+            </p>
+          </div>
+        </div>
+
+        {!currentFolder && (
+          <div className="pm-tabs">
+            <button
+              className={
+                activeTab === 'overview'
+                  ? 'active'
+                  : ''
+              }
+              onClick={() =>
+                selectTab('overview')
+              }
+            >
+              Overview
+            </button>
+
+            <button
+              className={
+                activeTab === 'content'
+                  ? 'active'
+                  : ''
+              }
+              onClick={() =>
+                selectTab('content')
+              }
+            >
+              Content
+            </button>
+
+            <button
+              className={
+                activeTab === 'live'
+                  ? 'active'
+                  : ''
+              }
+              onClick={() =>
+                selectTab('live')
+              }
+            >
+              Live Classes
+            </button>
+          </div>
+        )}
+
+        <div className="pm-tab-content">
+          {currentFolder ? (
+            <ContentTab />
+          ) : activeTab === 'overview' ? (
+            <OverviewTab />
+          ) : activeTab === 'content' ? (
+            <ContentTab />
+          ) : (
+            <LiveClassesTab />
+          )}
+        </div>
+      </>
+    );
+  }
+
+  function ComingSoon({ title, icon }) {
     return (
       <div className="pm-empty">
         <div>{icon}</div>
@@ -1234,57 +1658,9 @@ export default function PrepMasterApp() {
         <h3>{title}</h3>
 
         <p>
-          This feature is
-          coming soon.
+          This feature is coming soon.
         </p>
       </div>
-    );
-  }
-
-  function BatchPage() {
-    return (
-      <>
-        <div className="pm-page-title">
-          <button
-            className="pm-back-button"
-            onClick={goBackFolder}
-          >
-            ← Back
-          </button>
-
-          <h1>
-            {currentFolder
-              ? getTitle(currentFolder)
-              : getTitle(selectedBatch)}
-          </h1>
-
-          <p>
-            {currentFolder
-              ? 'Folder content'
-              : 'Course content'}
-          </p>
-        </div>
-
-        {contentLoading ? (
-          <div className="pm-state">
-            Loading content...
-          </div>
-        ) : contentError ? (
-          <div className="pm-error">
-            {contentError}
-          </div>
-        ) : contentItems.length === 0 ? (
-          <div className="pm-state">
-            No content found.
-          </div>
-        ) : (
-          <div className="pm-content-list">
-            {contentItems.map(
-              renderContentItem
-            )}
-          </div>
-        )}
-      </>
     );
   }
 
@@ -1302,9 +1678,7 @@ export default function PrepMasterApp() {
               ←
             </button>
 
-            <span>
-              {player.title}
-            </span>
+            <span>{player.title}</span>
           </div>
 
           <PdfPlayer
@@ -1327,9 +1701,7 @@ export default function PrepMasterApp() {
               ←
             </button>
 
-            <span>
-              {player.title}
-            </span>
+            <span>{player.title}</span>
           </div>
 
           <div className="pm-player-video-wrap">
@@ -1345,68 +1717,51 @@ export default function PrepMasterApp() {
       );
     }
 
-    if (player.type === 'video') {
-      return (
-        <div className="pm-fullscreen-player">
-          <div className="pm-player-topbar">
-            <button
-              type="button"
-              onClick={closePlayer}
-            >
-              ←
-            </button>
+    return (
+      <div className="pm-fullscreen-player">
+        <div className="pm-player-topbar">
+          <button
+            type="button"
+            onClick={closePlayer}
+          >
+            ←
+          </button>
 
-            <span>
-              {player.title}
-            </span>
-          </div>
-
-          <div className="pm-player-video-wrap">
-            <video
-              className="pm-direct-video"
-              src={player.url}
-              controls
-              autoPlay
-              playsInline
-              preload="metadata"
-              onError={(event) => {
-                console.error(
-                  'Native video error:',
-                  event.currentTarget.error
-                );
-
-                setPlayerError(
-                  'Video browser me play nahi ho saka. URL/source accessible hai ya nahi check karein.'
-                );
-              }}
-            />
-          </div>
+          <span>{player.title}</span>
         </div>
-      );
-    }
 
-    return null;
+        <div className="pm-player-video-wrap">
+          <video
+            className="pm-direct-video"
+            src={player.url}
+            controls
+            autoPlay
+            playsInline
+            preload="metadata"
+            onError={() => {
+              setPlayerError(
+                'Video play nahi ho saka.'
+              );
+            }}
+          />
+        </div>
+      </div>
+    );
   }
 
   function TestOverlay() {
-    if (!activeTest)
-      return null;
+    if (!activeTest) return null;
 
     return (
       <div className="pm-test-overlay">
         <div className="pm-test-card">
           <div className="pm-test-header">
-            <button
-              onClick={closeTest}
-            >
+            <button onClick={closeTest}>
               ←
             </button>
 
             <div>
-              <h2>
-                {activeTest.title}
-              </h2>
-
+              <h2>{activeTest.title}</h2>
               <p>Test</p>
             </div>
           </div>
@@ -1422,9 +1777,6 @@ export default function PrepMasterApp() {
               <button
                 className="pm-primary pm-small-button"
                 onClick={startTest}
-                style={{
-                  marginTop: 12,
-                }}
               >
                 Try Again
               </button>
@@ -1434,17 +1786,8 @@ export default function PrepMasterApp() {
               <div>📝</div>
 
               <h3>
-                Test questions
-                not available
+                Test questions not available
               </h3>
-
-              <p>
-                Instructions
-                load hui hain,
-                lekin questions
-                response me nahi
-                mile.
-              </p>
 
               <button
                 className="pm-primary pm-small-button"
@@ -1459,9 +1802,7 @@ export default function PrepMasterApp() {
                 {testQuestions.map(
                   (question, index) => {
                     const options =
-                      getOptions(
-                        question
-                      );
+                      getOptions(question);
 
                     return (
                       <div
@@ -1484,16 +1825,12 @@ export default function PrepMasterApp() {
                             (option) => (
                               <label
                                 className="pm-option"
-                                key={
-                                  option.key
-                                }
+                                key={option.key}
                               >
                                 <input
                                   type="radio"
                                   name={`question-${index}`}
-                                  value={
-                                    option.key
-                                  }
+                                  value={option.key}
                                   checked={
                                     testAnswers[
                                       index
@@ -1528,9 +1865,7 @@ export default function PrepMasterApp() {
               {!testResult ? (
                 <button
                   className="pm-primary pm-test-submit"
-                  onClick={
-                    submitLocalTest
-                  }
+                  onClick={submitLocalTest}
                 >
                   Submit Test
                 </button>
@@ -1545,8 +1880,7 @@ export default function PrepMasterApp() {
                     <strong>
                       {testResult.correct}
                     </strong>{' '}
-                    /{' '}
-                    {testResult.total}
+                    / {testResult.total}
                   </p>
 
                   <button
@@ -1567,15 +1901,12 @@ export default function PrepMasterApp() {
   }
 
   function Menu() {
-    if (!menuOpen)
-      return null;
+    if (!menuOpen) return null;
 
     return (
       <div
         className="pm-menu-backdrop"
-        onClick={() =>
-          setMenuOpen(false)
-        }
+        onClick={() => setMenuOpen(false)}
       >
         <div
           className="pm-menu"
@@ -1622,8 +1953,7 @@ export default function PrepMasterApp() {
           <a
             href={
               process.env
-                .NEXT_PUBLIC_TELEGRAM_URL ||
-              '#'
+                .NEXT_PUBLIC_TELEGRAM_URL || '#'
             }
             target="_blank"
             rel="noreferrer"
@@ -1634,8 +1964,7 @@ export default function PrepMasterApp() {
           <a
             href={
               process.env
-                .NEXT_PUBLIC_OWNER_CONTACT ||
-              '#'
+                .NEXT_PUBLIC_OWNER_CONTACT || '#'
             }
             target="_blank"
             rel="noreferrer"
@@ -1689,8 +2018,7 @@ export default function PrepMasterApp() {
 
         <button
           className={
-            page === 'home' ||
-            page === 'batch'
+            page === 'home'
               ? 'active'
               : ''
           }
@@ -1760,9 +2088,7 @@ export default function PrepMasterApp() {
             className="pm-logo"
           />
 
-          <span>
-            Prep Master
-          </span>
+          <span>Prep Master</span>
         </div>
 
         <button
@@ -1811,9 +2137,7 @@ export default function PrepMasterApp() {
               You have successfully
               enrolled in{' '}
               <strong>
-                {getTitle(
-                  enrollPopup
-                )}
+                {getTitle(enrollPopup)}
               </strong>
               .
             </p>
@@ -1837,13 +2161,10 @@ export default function PrepMasterApp() {
               🎥
             </div>
 
-            <h3>
-              Loading...
-            </h3>
+            <h3>Loading...</h3>
 
             <p>
-              Please wait while
-              the content loads.
+              Please wait while the content loads.
             </p>
           </div>
         </div>
@@ -1856,14 +2177,9 @@ export default function PrepMasterApp() {
               ⚠️
             </div>
 
-            <h3>
-              Unable to open
-              content
-            </h3>
+            <h3>Unable to open content</h3>
 
-            <p>
-              {playerError}
-            </p>
+            <p>{playerError}</p>
 
             <button
               className="pm-primary"

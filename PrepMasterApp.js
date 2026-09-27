@@ -1017,7 +1017,10 @@ export default function PrepMasterApp() {
       return;
     }
 
+    const requestId = ++playbackRequestRef.current;
+
     try {
+      setPlayer(null);
       setPlayerLoading(true);
 
       const response = await fetch(
@@ -1031,39 +1034,50 @@ export default function PrepMasterApp() {
         }
       );
 
-      const json = await response.json();
+      const json = await response
+        .json()
+        .catch(() => null);
+
+      if (requestId !== playbackRequestRef.current) return;
 
       if (!response.ok || !json?.success) {
         throw new Error(
           json?.error ||
-            'Unable to load video.'
+            'Video load nahi ho saka.'
         );
       }
 
-      const playableUrl =
-        json?.url ??
-        json?.data?.url ??
-        json?.data?.file_url ??
-        null;
+      const playableUrl = json?.url || null;
 
       if (!playableUrl) {
         throw new Error(
-          'Playable video URL was not returned.'
+          'Playable video URL available nahi hai.'
+        );
+      }
+
+      if (json?.type === 'mpd') {
+        throw new Error(
+          'DASH (.mpd) stream abhi supported nahi hai.'
         );
       }
 
       setPlayer({
         type: 'video',
         url: playableUrl,
+        streamType: json?.type || '',
+        contentId,
         title,
       });
     } catch (err) {
+      if (requestId !== playbackRequestRef.current) return;
       setPlayerError(
         err?.message ||
-          'Unable to load video.'
+          'Video load nahi ho saka.'
       );
     } finally {
-      setPlayerLoading(false);
+      if (requestId === playbackRequestRef.current) {
+        setPlayerLoading(false);
+      }
     }
   }
 

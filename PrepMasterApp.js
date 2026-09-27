@@ -970,9 +970,7 @@ export default function PrepMasterApp() {
       [enrolled]
     );
 
-  function renderBatchCard(
-    batch
-  ) {
+  function renderBatchCard(batch) {
     const enrolledNow =
       isEnrolled(batch);
 

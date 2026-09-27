@@ -1,31 +1,88 @@
 import { NextResponse } from 'next/server';
 
-// The previous version returned one hardcoded stream for every content_id,
-// which played the wrong video. Until an authorized per-content playback
-// source is wired up here (using STUDYBEE_KEY / STUDYBEE_DEVICE_ID server-side),
-// this route reports that honestly instead of inventing a URL.
+export const dynamic = 'force-dynamic';
+
+const LOAD_FAILED = 'Video load nahi ho saka.';
+const URL_MISSING = 'Playable video URL available nahi hai.';
+
+function fail(error, status) {
+  return NextResponse.json(
+    { success: false, error },
+    { status, headers: { 'Cache-Control': 'no-store' } }
+  );
+}
+
+function detectType(url, hint) {
+  if (hint) return String(hint).toLowerCase();
+  if (/\.m3u8(\?|$)/i.test(url)) return 'm3u8';
+  if (/\.mpd(\?|$)/i.test(url)) return 'mpd';
+  return 'mp4';
+}
+
+function pickUrl(json) {
+  const d = json?.data ?? {};
+  return (
+    json?.url ??
+    json?.playback_url ??
+    d?.url ??
+    d?.playback_url ??
+    d?.file_url ??
+    d?.link ??
+    null
+  );
+}
 
 export async function GET(req) {
   const q = new URL(req.url).searchParams;
+  const contentId = q.get('content_id')?.trim();
+  const courseId = q.get('course_id')?.trim();
 
-  const contentId = q.get('content_id');
-  const courseId = q.get('course_id');
-
-  if (!contentId || !courseId) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'content_id and course_id are required',
-      },
-      { status: 400 }
-    );
+  if (!contentId || !courseId || !/^\d+$/.test(contentId) || !/^\d+$/.test(courseId)) {
+    return fail('content_id and course_id are required', 400);
   }
 
-  return NextResponse.json(
-    {
-      success: false,
-      error: 'Is video ke liye authorized playback URL available nahi hai.',
-    },
-    { status: 501 }
-  );
+  const source = process.env.PLAYBACK_API_URL;
+  const key = process.env.STUDYBEE_KEY;
+  const device = process.env.STUDYBEE_DEVICE_ID;
+
+  if (!source || !key || !device) {
+    return fail(LOAD_FAILED, 500);
+  }
+
+  try {
+    const upstream = new URL(source);
+    upstream.searchParams.set('content_id', contentId);
+    upstream.searchParams.set('course_id', courseId);
+
+    const response = await fetch(upstream, {
+      cache: 'no-store',
+      headers: {
+        Accept: 'application/json',
+        'x-api-key': key,
+        'x-device-id': device,
+      },
+    });
+
+    const json = await response.json().catch(() => null);
+
+    if (!response.ok || !json || json.success === false) {
+      return fail(LOAD_FAILED, response.status === 403 ? 403 : 502);
+    }
+
+    const url = pickUrl(json);
+    if (!url || typeof url !== 'string' || !/^https:\/\//i.test(url)) {
+      return fail(URL_MISSING, 404);
+    }
+
+    return NextResponse.json(
+      {
+        success: true,
+        url,
+        type: detectType(url, json?.type ?? json?.data?.type),
+      },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
+  } catch {
+    return fail(LOAD_FAILED, 502);
+  }
 }

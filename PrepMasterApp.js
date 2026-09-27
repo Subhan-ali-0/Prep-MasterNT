@@ -631,17 +631,6 @@ export default function PrepMasterApp() {
     );
   }
 
-  /*
-   * DIRECT VIDEO
-   *
-   * No Shaka Player.
-   *
-   * If a direct authorized URL exists,
-   * it is passed to the native HTML5 video.
-   *
-   * If no URL exists, backend playback
-   * endpoint is requested.
-   */
   async function openVideo(item) {
     if (!selectedBatch) return;
 
@@ -761,12 +750,6 @@ export default function PrepMasterApp() {
     }
   }
 
-  /*
-   * DIRECT PDF
-   *
-   * Browser's own PDF viewer opens the
-   * authorized PDF URL.
-   */
   function openPdf(item) {
     const url = getPdfUrl(item);
 
@@ -777,11 +760,13 @@ export default function PrepMasterApp() {
       return;
     }
 
-    window.open(
+    setPlayerError('');
+
+    setPlayer({
+      type: 'pdf',
+      title: getTitle(item),
       url,
-      '_blank',
-      'noopener,noreferrer'
-    );
+    });
   }
 
   async function openTest(item) {
@@ -1305,11 +1290,33 @@ export default function PrepMasterApp() {
     );
   }
 
-  /*
-   * DIRECT VIDEO OVERLAY
-   */
   function VideoOverlay() {
     if (!player) return null;
+
+    if (player.type === 'pdf') {
+      return (
+        <div className="pm-fullscreen-player">
+          <div className="pm-player-topbar">
+            <button
+              type="button"
+              onClick={closePlayer}
+            >
+              ←
+            </button>
+
+            <span>
+              {player.title}
+            </span>
+          </div>
+
+          <PdfPlayer
+            url={player.url}
+            title={player.title}
+            onClose={closePlayer}
+          />
+        </div>
+      );
+    }
 
     if (player.type === 'youtube') {
       return (

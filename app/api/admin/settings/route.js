@@ -27,3 +27,40 @@ export async function GET() {
     settings: settings?.data || {},
   });
 }
+
+const SETTING_FIELDS = ['appName', 'telegramUrl', 'ownerContact', 'heroTitle', 'heroSubtitle'];
+
+export async function PUT(req) {
+  if (!(await isAuthorized())) {
+    return NextResponse.json(
+      { success: false, error: 'Unauthorized' },
+      { status: 401 }
+    );
+  }
+
+  try {
+    const body = await req.json();
+    const data = {};
+
+    for (const field of SETTING_FIELDS) {
+      if (typeof body?.[field] === 'string') data[field] = body[field].slice(0, 500);
+    }
+
+    const db = await getDb();
+
+    await db
+      .collection('settings')
+      .updateOne(
+        { key: 'main' },
+        { $set: { key: 'main', data, updatedAt: new Date() } },
+        { upsert: true }
+      );
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json(
+      { success: false, error: error?.message || 'Unable to save settings.' },
+      { status: 500 }
+    );
+  }
+}

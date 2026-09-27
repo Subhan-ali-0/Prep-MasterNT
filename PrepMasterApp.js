@@ -1,11 +1,92 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import PdfPlayer from './PdfPlayer';
+import HlsVideo from './HlsVideo';
+import { sanitizeHtml } from './lib/sanitize-html';
+
+const TELEGRAM_URL =
+  process.env.NEXT_PUBLIC_TELEGRAM_URL ||
+  'https://t.me/prepmaster0';
+
+const OWNER_CONTACT =
+  process.env.NEXT_PUBLIC_OWNER_CONTACT ||
+  'https://t.me/Subhanali011';
 
 /* =========================================================
    HELPERS
 ========================================================= */
+
+/* Folder / file (content) ID. Never falls back to course_id. */
+function getContentId(item) {
+  return String(
+    item?.entity_id ??
+      item?.data?.id ??
+      item?.id ??
+      ''
+  );
+}
+
+function isLocked(item) {
+  const locked =
+    item?.is_locked ?? item?.data?.is_locked;
+  const purchased =
+    item?.is_purchased ?? item?.data?.is_purchased;
+
+  return (
+    String(locked) === '1' &&
+    String(purchased ?? '0') !== '1'
+  );
+}
+
+function sumCount(count) {
+  if (count == null) return 0;
+  if (typeof count === 'number') return count;
+
+  const free = Number(count?.free) || 0;
+  const paid = Number(count?.paid) || 0;
+  const total = Number(count?.total) || 0;
+
+  return free + paid || total;
+}
+
+function isFlagOn(value) {
+  if (value == null || value === '') return false;
+
+  const v = String(value).toLowerCase();
+
+  return v !== '0' && v !== 'false' && v !== 'no';
+}
+
+function formatPrice(value) {
+  if (value == null || value === '') return '';
+
+  const n = Number(value);
+
+  if (Number.isNaN(n)) return String(value);
+  if (n === 0) return 'FREE';
+
+  return `₹${n.toLocaleString('en-IN')}`;
+}
+
+function formatDateTime(value) {
+  if (!value) return '';
+
+  const number = Number(value);
+  const date = Number.isNaN(number)
+    ? new Date(value)
+    : new Date(number < 10000000000 ? number * 1000 : number);
+
+  if (Number.isNaN(date.getTime())) return String(value);
+
+  return date.toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
 
 function getId(item) {
   return String(
@@ -40,7 +121,7 @@ function getPrice(item) {
     item?.offer_price ??
     item?.price ??
     item?.data?.offer_price ??
-    'FREE'
+    ''
   );
 }
 
@@ -230,28 +311,28 @@ function formatDate(value) {
   return String(value);
 }
 
+function toArray(value) {
+  if (Array.isArray(value)) return value;
+  if (value && typeof value === 'object') return [value];
+  return [];
+}
+
 function extractOverviewDetails(json) {
-  const sections = Array.isArray(json?.data)
-    ? json.data
-    : [];
+  const sections = toArray(json?.data);
 
   const overview = sections.find(
     (item) => item?.type === 'overview'
   );
 
-  const layouts = Array.isArray(overview?.data)
-    ? overview.data
-    : [];
+  const layouts = toArray(overview?.data);
 
   const detailsLayout = layouts.find(
     (item) => item?.layout_type === 'details'
   );
 
-  const details = Array.isArray(
+  const details = toArray(
     detailsLayout?.layout_data
-  )
-    ? detailsLayout.layout_data
-    : [];
+  );
 
   return {
     layouts,
@@ -327,6 +408,20 @@ function getLiveUrl(item) {
     item?.data?.url ??
     ''
   );
+}
+
+function getLiveStatus(item) {
+  const status =
+    item?.status_text ??
+    item?.live_status ??
+    item?.status ??
+    item?.data?.status ??
+    '';
+
+  if (typeof status === 'string') return status;
+  if (isFlagOn(item?.is_live)) return 'Live';
+
+  return '';
 }
 
 function getLiveThumbnail(item) {
@@ -424,6 +519,14 @@ export default function PrepMasterApp() {
     useState({});
   const [testResult, setTestResult] =
     useState(null);
+
+  const [returnPage, setReturnPage] =
+    useState('batches');
+
+  const [playerErrorTitle, setPlayerErrorTitle] =
+    useState('Playback Error');
+
+  const contentRequestRef = useRef(0);
 
   /* =========================================================
      LOAD ENROLLED
@@ -606,9 +709,12 @@ export default function PrepMasterApp() {
   ) {
     if (!courseId) return;
 
+    const requestId = ++contentRequestRef.current;
+
     try {
       setContentLoading(true);
       setContentError('');
+      setContentItems([]);
 
       const response = await fetch(
         `/api/content?content=${encodeURIComponent(
@@ -623,6 +729,8 @@ export default function PrepMasterApp() {
 
       const json = await response.json();
 
+      if (requestId !== contentRequestRef.current) return;
+
       if (!response.ok || json?.success === false) {
         throw new Error(
           json?.error ||
@@ -636,6 +744,8 @@ export default function PrepMasterApp() {
           : []
       );
     } catch (err) {
+      if (requestId !== contentRequestRef.current) return;
+
       setContentItems([]);
 
       setContentError(
@@ -643,7 +753,9 @@ export default function PrepMasterApp() {
           'Unable to load content.'
       );
     } finally {
-      setContentLoading(false);
+      if (requestId === contentRequestRef.current) {
+        setContentLoading(false);
+      }
     }
   }
 
@@ -697,6 +809,8 @@ export default function PrepMasterApp() {
 
   async function openBatch(batch) {
     const courseId = getId(batch);
+
+    if (page !== 'batch') setReturnPage(page);
 
     setSelectedBatch(batch);
 
@@ -764,22 +878,18 @@ export default function PrepMasterApp() {
      FOLDER
   ========================================================= */
 
+  /* folderStack holds every folder entered, root excluded: [{ id, title }] */
+
   async function openFolder(item) {
     if (!selectedBatch) return;
 
-    const folderId = getId(item);
+    const folderId = getContentId(item);
 
-    if (!folderId) return;
+    if (!folderId || folderId === currentFolder) return;
 
     setFolderStack((previous) => [
       ...previous,
-      {
-        id: currentFolder,
-        title:
-          currentFolder === '0'
-            ? 'Content'
-            : 'Folder',
-      },
+      { id: folderId, title: getTitle(item) },
     ]);
 
     setCurrentFolder(folderId);
@@ -790,35 +900,29 @@ export default function PrepMasterApp() {
     );
   }
 
-  async function goBackFolder() {
+  async function goToFolderDepth(depth) {
     if (!selectedBatch) return;
 
-    const previous =
-      folderStack[
-        folderStack.length - 1
-      ];
-
-    if (!previous) {
-      setCurrentFolder('0');
-
-      await loadContent(
-        getId(selectedBatch),
-        '0'
-      );
-
-      return;
-    }
-
-    setFolderStack((stack) =>
-      stack.slice(0, -1)
+    const next = folderStack.slice(
+      0,
+      Math.max(0, depth)
     );
 
-    setCurrentFolder(previous.id);
+    const folderId = next.length
+      ? next[next.length - 1].id
+      : '0';
+
+    setFolderStack(next);
+    setCurrentFolder(folderId);
 
     await loadContent(
       getId(selectedBatch),
-      previous.id
+      folderId
     );
+  }
+
+  async function goBackFolder() {
+    await goToFolderDepth(folderStack.length - 1);
   }
 
   /* =========================================================
@@ -875,12 +979,15 @@ export default function PrepMasterApp() {
       return;
     }
 
-    /* Direct normal video */
+    /* Direct URL returned by the content API (mp4 or HLS) */
 
-    if (
-      directUrl &&
-      !isHlsOrDashUrl(directUrl)
-    ) {
+    if (directUrl) {
+      if (/\.mpd(\?|$)/i.test(directUrl)) {
+        setPlayerErrorTitle('Playback Error');
+        setPlayerError('DASH (.mpd) stream abhi supported nahi hai.');
+        return;
+      }
+
       setPlayer({
         type: 'video',
         url: directUrl,
@@ -892,13 +999,15 @@ export default function PrepMasterApp() {
 
     /* Authorized backend playback */
 
-    const contentId = getId(item);
+    const contentId = getContentId(item);
 
-    const courseId =
-      item?.course_id ??
+    const courseId = String(
       selectedBatch
         ? getId(selectedBatch)
-        : '';
+        : item?.course_id ?? ''
+    );
+
+    setPlayerErrorTitle('Playback Error');
 
     if (!contentId || !courseId) {
       setPlayerError(
@@ -947,9 +1056,6 @@ export default function PrepMasterApp() {
         type: 'video',
         url: playableUrl,
         title,
-        hls: isHlsOrDashUrl(
-          playableUrl
-        ),
       });
     } catch (err) {
       setPlayerError(
@@ -969,6 +1075,7 @@ export default function PrepMasterApp() {
     const url = getPdfUrl(item);
 
     if (!url) {
+      setPlayerErrorTitle('PDF');
       setPlayerError(
         'PDF URL available nahi hai.'
       );
@@ -1041,6 +1148,14 @@ export default function PrepMasterApp() {
   function handleContentItem(item) {
     if (isFolder(item)) {
       openFolder(item);
+      return;
+    }
+
+    if (isLocked(item)) {
+      setPlayerErrorTitle('Content Locked');
+      setPlayerError(
+        'Ye content locked hai. Isse access karne ke liye batch purchase hona zaroori hai.'
+      );
       return;
     }
 
@@ -1132,16 +1247,21 @@ export default function PrepMasterApp() {
     }
 
     if (target === 'contact') {
-      window.location.href =
-        'mailto:prepmastersubhan@gmail.com';
-    }
-
-    if (target === 'telegram') {
       window.open(
-        'https://t.me/',
+        OWNER_CONTACT,
         '_blank',
         'noopener,noreferrer'
       );
+      return;
+    }
+
+    if (target === 'telegram') {
+      setTelegramPopup(true);
+      return;
+    }
+
+    if (target === 'admin') {
+      window.location.href = '/admin';
     }
   }
 
@@ -1203,13 +1323,8 @@ export default function PrepMasterApp() {
           </div>
         ) : (
           <div className="pm-batch-grid">
-            {filteredBatches.map(
-              (batch) => (
-                <BatchCard
-                  key={getId(batch)}
-                  batch={batch}
-                />
-              )
+            {filteredBatches.map((batch) =>
+              BatchCard({ batch })
             )}
           </div>
         )}
@@ -1225,8 +1340,18 @@ export default function PrepMasterApp() {
     const enrolledAlready =
       isEnrolled(batch);
 
+    const price = formatPrice(getPrice(batch));
+    const mrpValue = batch?.mrp ?? batch?.data?.mrp;
+    const mrp =
+      mrpValue != null &&
+      Number(mrpValue) > Number(getPrice(batch) || 0)
+        ? formatPrice(mrpValue)
+        : '';
+    const isNew = isFlagOn(batch?.is_new);
+    const isTrending = isFlagOn(batch?.is_trending);
+
     return (
-      <div className="pm-batch-card">
+      <div className="pm-batch-card" key={getId(batch)}>
         {getBatchImage(batch) ? (
           <img
             src={getBatchImage(batch)}
@@ -1240,6 +1365,17 @@ export default function PrepMasterApp() {
         )}
 
         <div className="pm-batch-body">
+          {(isNew || isTrending) && (
+            <div className="pm-badge-row">
+              {isNew && (
+                <span className="pm-badge pm-badge-new">New</span>
+              )}
+              {isTrending && (
+                <span className="pm-badge pm-badge-trending">Trending</span>
+              )}
+            </div>
+          )}
+
           <h3>
             {getTitle(batch)}
           </h3>
@@ -1252,9 +1388,12 @@ export default function PrepMasterApp() {
             </p>
           )}
 
-          <div className="pm-price">
-            ₹{getPrice(batch)}
-          </div>
+          {price && (
+            <div className="pm-price">
+              {price}
+              {mrp && <span className="pm-mrp">{mrp}</span>}
+            </div>
+          )}
 
           <div className="pm-card-actions">
             <button
@@ -1302,7 +1441,8 @@ export default function PrepMasterApp() {
     if (overviewError) {
       return (
         <div className="pm-state pm-error">
-          {overviewError}
+          Overview load nahi ho saka.
+          <small>{overviewError}</small>
         </div>
       );
     }
@@ -1313,10 +1453,18 @@ export default function PrepMasterApp() {
     if (!course) {
       return (
         <div className="pm-state">
-          Overview details available nahi hain.
+          Overview available nahi hai.
         </div>
       );
     }
+
+    const offer = formatPrice(course.offer_price);
+    const mrp =
+      Number(course.mrp) > Number(course.offer_price || 0)
+        ? formatPrice(course.mrp)
+        : '';
+    const discount = Number(course.discount_percentage) || 0;
+    const rating = Number(course.average_rating) || 0;
 
     return (
       <div className="pm-overview">
@@ -1334,39 +1482,31 @@ export default function PrepMasterApp() {
           </h2>
 
           <div className="pm-overview-price-row">
-            {course.offer_price && (
-              <strong>
-                ₹{course.offer_price}
-              </strong>
+            {offer && <strong>{offer}</strong>}
+
+            {mrp && (
+              <span className="pm-mrp">{mrp}</span>
             )}
 
-            {course.mrp && (
-              <span className="pm-mrp">
-                ₹{course.mrp}
-              </span>
-            )}
-
-            {course.discount_percentage && (
+            {discount > 0 && (
               <span className="pm-discount">
-                {course.discount_percentage}%
-                OFF
+                {discount}% OFF
               </span>
             )}
           </div>
 
-          <div className="pm-overview-badges">
-            {course.is_new && (
-              <span className="pm-badge">
-                {course.is_new}
-              </span>
-            )}
+          {(isFlagOn(course.is_new) ||
+            isFlagOn(course.is_trending)) && (
+            <div className="pm-overview-badges">
+              {isFlagOn(course.is_new) && (
+                <span className="pm-badge pm-badge-new">New</span>
+              )}
 
-            {course.is_trending && (
-              <span className="pm-badge">
-                {course.is_trending}
-              </span>
-            )}
-          </div>
+              {isFlagOn(course.is_trending) && (
+                <span className="pm-badge pm-badge-trending">Trending</span>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="pm-overview-card">
@@ -1378,7 +1518,7 @@ export default function PrepMasterApp() {
             className="pm-overview-description"
             dangerouslySetInnerHTML={{
               __html:
-                course.description ||
+                sanitizeHtml(course.description) ||
                 '<p>No description available.</p>',
             }}
           />
@@ -1413,13 +1553,13 @@ export default function PrepMasterApp() {
               </p>
             )}
 
-            {course.average_rating && (
+            {rating > 0 && (
               <p>
                 <strong>
                   Rating:
                 </strong>{' '}
                 ⭐{' '}
-                {course.average_rating}
+                {rating}
               </p>
             )}
 
@@ -1444,14 +1584,44 @@ export default function PrepMasterApp() {
   function ContentTab() {
     return (
       <div>
-        {currentFolder !== '0' && (
-          <button
-            type="button"
-            className="pm-back-button"
-            onClick={goBackFolder}
-          >
-            ← Back
-          </button>
+        {folderStack.length > 0 && (
+          <div className="pm-folder-bar">
+            <button
+              type="button"
+              className="pm-back-button"
+              onClick={goBackFolder}
+              aria-label="Back to previous folder"
+            >
+              ←
+            </button>
+
+            <nav className="pm-breadcrumb" aria-label="Folder path">
+              <button
+                type="button"
+                onClick={() => goToFolderDepth(0)}
+              >
+                Content
+              </button>
+
+              {folderStack.map((folder, index) => (
+                <span key={`${folder.id}-${index}`}>
+                  <span aria-hidden="true" className="pm-breadcrumb-sep">
+                    ›
+                  </span>
+                  {index === folderStack.length - 1 ? (
+                    <span aria-current="page">{folder.title}</span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => goToFolderDepth(index + 1)}
+                    >
+                      {folder.title}
+                    </button>
+                  )}
+                </span>
+              ))}
+            </nav>
+          </div>
         )}
 
         {contentLoading ? (
@@ -1468,16 +1638,11 @@ export default function PrepMasterApp() {
           </div>
         ) : (
           <div className="pm-content-list">
-            {contentItems.map(
-              (item, index) => (
-                <ContentCard
-                  key={
-                    getId(item) ||
-                    index
-                  }
-                  item={item}
-                />
-              )
+            {contentItems.map((item, index) =>
+              ContentCard({
+                item,
+                key: `${getContentId(item) || 'item'}-${index}`,
+              })
             )}
           </div>
         )}
@@ -1489,31 +1654,60 @@ export default function PrepMasterApp() {
      CONTENT CARD
   ========================================================= */
 
-  function ContentCard({ item }) {
+  function ContentCard({ item, key }) {
     const folder =
       isFolder(item);
 
+    const locked = !folder && isLocked(item);
+
     let icon = '📄';
+    let kind = 'File';
 
     if (folder) {
       icon = '📁';
+      kind = 'Folder';
     } else if (isVideo(item)) {
       icon = '🎥';
+      kind = 'Video';
     } else if (isPdf(item)) {
-      icon = '📕';
+      icon = '📄';
+      kind = 'PDF';
     } else if (isTest(item)) {
       icon = '📝';
+      kind = 'Test';
+    }
+
+    const counts =
+      item?.data?.content_counts ??
+      item?.content_counts ??
+      null;
+
+    const videoCount = sumCount(counts?.video);
+    const pdfCount = sumCount(counts?.pdf);
+
+    const meta = [];
+
+    if (folder) {
+      if (videoCount) {
+        meta.push(`${videoCount} video${videoCount === 1 ? '' : 's'}`);
+      }
+      if (pdfCount) {
+        meta.push(`${pdfCount} PDF${pdfCount === 1 ? '' : 's'}`);
+      }
+    } else {
+      meta.push(kind);
     }
 
     return (
       <button
+        key={key}
         type="button"
-        className="pm-content-card"
+        className={`pm-content-card${locked ? ' pm-content-locked' : ''}`}
         onClick={() =>
           handleContentItem(item)
         }
       >
-        <div className="pm-content-icon">
+        <div className="pm-content-icon" aria-hidden="true">
           {icon}
         </div>
 
@@ -1522,21 +1716,17 @@ export default function PrepMasterApp() {
             {getTitle(item)}
           </div>
 
-          {folder &&
-            item?.data
-              ?.content_counts && (
-              <div className="pm-content-meta">
-                {item.data.content_counts
-                  .video?.paid ||
-                  0}{' '}
-                videos
-              </div>
-            )}
+          {meta.length > 0 && (
+            <div className="pm-content-meta">
+              {meta.join(' • ')}
+            </div>
+          )}
         </div>
 
-        <div className="pm-content-arrow">
-          →
+        <div className="pm-content-arrow" aria-hidden="true">
+          {locked ? '🔒' : '›'}
         </div>
+        {locked && <span className="sr-only">Locked</span>}
       </button>
     );
   }
@@ -1565,7 +1755,7 @@ export default function PrepMasterApp() {
     if (liveClasses.length === 0) {
       return (
         <div className="pm-state">
-          No live classes available.
+          Abhi koi live class available nahi hai.
         </div>
       );
     }
@@ -1622,8 +1812,14 @@ export default function PrepMasterApp() {
 
                   {date && (
                     <div className="pm-live-meta">
-                      🕐 {formatDate(date)}
+                      🕐 {formatDateTime(date)}
                     </div>
+                  )}
+
+                  {getLiveStatus(item) && (
+                    <span className="pm-badge pm-live-status">
+                      {getLiveStatus(item)}
+                    </span>
                   )}
                 </div>
 
@@ -1671,8 +1867,9 @@ export default function PrepMasterApp() {
             type="button"
             className="pm-back-button"
             onClick={() =>
-              setPage('batches')
+              setPage(returnPage || 'batches')
             }
+            aria-label="Back"
           >
             ←
           </button>
@@ -1767,20 +1964,14 @@ export default function PrepMasterApp() {
           </button>
         </div>
 
-        {activeBatchTab ===
-          'overview' && (
-          <OverviewTab />
-        )}
+        {activeBatchTab === 'overview' &&
+          OverviewTab()}
 
-        {activeBatchTab ===
-          'content' && (
-          <ContentTab />
-        )}
+        {activeBatchTab === 'content' &&
+          ContentTab()}
 
-        {activeBatchTab ===
-          'live' && (
-          <LiveClassesTab />
-        )}
+        {activeBatchTab === 'live' &&
+          LiveClassesTab()}
       </div>
     );
   }
@@ -1802,13 +1993,8 @@ export default function PrepMasterApp() {
           </div>
         ) : (
           <div className="pm-batch-grid">
-            {enrolled.map(
-              (batch) => (
-                <BatchCard
-                  key={getId(batch)}
-                  batch={batch}
-                />
-              )
+            {enrolled.map((batch) =>
+              BatchCard({ batch })
             )}
           </div>
         )}
@@ -1909,20 +2095,17 @@ export default function PrepMasterApp() {
           {player.type ===
             'video' && (
             <div className="pm-video-wrapper">
-              <video
+              <HlsVideo
+                key={player.url}
                 src={player.url}
-                controls
-                autoPlay
-                playsInline
+                title={player.title}
                 className="pm-video"
+                onFatalError={(message) => {
+                  setPlayer(null);
+                  setPlayerErrorTitle('Playback Error');
+                  setPlayerError(message);
+                }}
               />
-
-              {player.hls && (
-                <div className="pm-player-note">
-                  HLS stream browser support
-                  par depend karta hai.
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -2187,7 +2370,7 @@ export default function PrepMasterApp() {
               setTelegramPopup(false);
 
               window.open(
-                'https://t.me/',
+                TELEGRAM_URL,
                 '_blank',
                 'noopener,noreferrer'
               );
@@ -2370,39 +2553,25 @@ export default function PrepMasterApp() {
 
   return (
     <div className="pm-app">
-      {page === 'batches' && (
-        <BatchesPage />
-      )}
+      {page === 'batches' && BatchesPage()}
 
-      {page === 'my-batches' && (
-        <MyBatchesPage />
-      )}
+      {page === 'my-batches' && MyBatchesPage()}
 
-      {page === 'community' && (
-        <CommunityPage />
-      )}
+      {page === 'community' && CommunityPage()}
 
-      {page === 'ai' && <AiPage />}
+      {page === 'ai' && AiPage()}
 
-      {page === 'batch' && (
-        <BatchPage />
-      )}
+      {page === 'batch' && BatchPage()}
 
-      <SideMenu />
+      {SideMenu()}
 
-      <BottomNav />
+      {BottomNav()}
 
-      {player?.type ===
-        'video' && (
-        <VideoOverlay />
-      )}
+      {player?.type === 'video' && VideoOverlay()}
 
-      {player?.type ===
-        'pdf' && (
-        <PdfOverlay />
-      )}
+      {player?.type === 'pdf' && PdfOverlay()}
 
-      {test && <TestOverlay />}
+      {test && TestOverlay()}
 
       {playerError && (
         <div className="pm-popup-overlay">
@@ -2412,7 +2581,7 @@ export default function PrepMasterApp() {
             </div>
 
             <h2>
-              Playback Error
+              {playerErrorTitle}
             </h2>
 
             <p>

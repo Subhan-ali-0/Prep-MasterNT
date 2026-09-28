@@ -8,7 +8,10 @@ const URL_MISSING = 'Playable video URL available nahi hai.';
 function fail(error, status) {
   return NextResponse.json(
     { success: false, error },
-    { status, headers: { 'Cache-Control': 'no-store' } }
+    {
+      status,
+      headers: { 'Cache-Control': 'no-store' },
+    }
   );
 }
 
@@ -21,6 +24,7 @@ function detectType(url, hint) {
 
 function pickUrl(json) {
   const d = json?.data ?? {};
+
   return (
     json?.url ??
     json?.playback_url ??
@@ -34,10 +38,16 @@ function pickUrl(json) {
 
 export async function GET(req) {
   const q = new URL(req.url).searchParams;
+
   const contentId = q.get('content_id')?.trim();
   const courseId = q.get('course_id')?.trim();
 
-  if (!contentId || !courseId || !/^\d+$/.test(contentId) || !/^\d+$/.test(courseId)) {
+  if (
+    !contentId ||
+    !courseId ||
+    !/^\d+$/.test(contentId) ||
+    !/^\d+$/.test(courseId)
+  ) {
     return fail('content_id and course_id are required', 400);
   }
 
@@ -46,11 +56,18 @@ export async function GET(req) {
   const device = process.env.STUDYBEE_DEVICE_ID;
 
   if (!source || !key || !device) {
-    return fail(LOAD_FAILED, 500);
+    console.error('Playback configuration missing:', {
+      source: Boolean(source),
+      key: Boolean(key),
+      device: Boolean(device),
+    });
+
+    return fail('Playback configuration missing', 500);
   }
 
   try {
     const upstream = new URL(source);
+
     upstream.searchParams.set('content_id', contentId);
     upstream.searchParams.set('course_id', courseId);
 
@@ -66,11 +83,27 @@ export async function GET(req) {
     const json = await response.json().catch(() => null);
 
     if (!response.ok || !json || json.success === false) {
-      return fail(LOAD_FAILED, response.status === 403 ? 403 : 502);
+      console.error('Playback upstream error:', {
+        status: response.status,
+        success: json?.success,
+        message: json?.message || json?.error || 'No error message',
+      });
+
+      return fail(
+        LOAD_FAILED,
+        response.status === 403 ? 403 : 502
+      );
     }
 
     const url = pickUrl(json);
-    if (!url || typeof url !== 'string' || !/^https:\/\//i.test(url)) {
+
+    if (
+      !url ||
+      typeof url !== 'string' ||
+      !/^https:\/\//i.test(url)
+    ) {
+      console.error('Playback URL missing in upstream response');
+
       return fail(URL_MISSING, 404);
     }
 
@@ -80,9 +113,15 @@ export async function GET(req) {
         url,
         type: detectType(url, json?.type ?? json?.data?.type),
       },
-      { headers: { 'Cache-Control': 'no-store' } }
+      {
+        headers: { 'Cache-Control': 'no-store' },
+      }
     );
-  } catch {
+  } catch (error) {
+    console.error('Playback fetch exception:', {
+      message: error?.message || 'Unknown error',
+    });
+
     return fail(LOAD_FAILED, 502);
   }
 }

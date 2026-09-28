@@ -261,19 +261,15 @@ export default function PrepMasterApp() {
   ========================================================= */
 
   const openBatch = (batch) => {
-  const batchId = getId(batch);
+    const batchId = getId(batch);
 
-  if (!batchId) {
-    alert("Batch ID nahi mili");
-    return;
-  }
+    if (!batchId) {
+      alert('Batch ID nahi mili');
+      return;
+    }
 
-  window.location.href = `https://nt.nextstudys.site/course/${encodeURIComponent(batchId)}`;
-};
-
-    setActiveBatchUrl(targetUrl);
-    setCourseOpen(true);
-  }
+    window.location.href = `https://nt.nextstudys.site/course/${encodeURIComponent(batchId)}`;
+  };
 
   /* =========================================================
      CLOSE COURSE

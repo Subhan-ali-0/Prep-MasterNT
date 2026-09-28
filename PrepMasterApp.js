@@ -28,15 +28,7 @@ function getContentId(item) {
 }
 
 function isLocked(item) {
-  const locked =
-    item?.is_locked ?? item?.data?.is_locked;
-  const purchased =
-    item?.is_purchased ?? item?.data?.is_purchased;
-
-  return (
-    String(locked) === '1' &&
-    String(purchased ?? '0') !== '1'
-  );
+  return false;
 }
 
 function sumCount(count) {
@@ -527,6 +519,7 @@ export default function PrepMasterApp() {
     useState('Playback Error');
 
   const contentRequestRef = useRef(0);
+  const playbackRequestRef = useRef(0);
 
   /* =========================================================
      LOAD ENROLLED
@@ -1162,14 +1155,6 @@ export default function PrepMasterApp() {
   function handleContentItem(item) {
     if (isFolder(item)) {
       openFolder(item);
-      return;
-    }
-
-    if (isLocked(item)) {
-      setPlayerErrorTitle('Content Locked');
-      setPlayerError(
-        'Ye content locked hai. Isse access karne ke liye batch purchase hona zaroori hai.'
-      );
       return;
     }
 

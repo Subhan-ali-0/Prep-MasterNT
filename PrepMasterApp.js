@@ -260,16 +260,16 @@ export default function PrepMasterApp() {
      OPEN BATCH
   ========================================================= */
 
-  function openBatch(batch) {
-    const batchId = getId(batch);
+  const openBatch = (batch) => {
+  const batchId = getId(batch);
 
-    if (!batchId) {
-      alert('Batch ID is missing.');
-      return;
-    }
+  if (!batchId) {
+    alert("Batch ID nahi mili");
+    return;
+  }
 
-    const targetUrl =
-      `https://nexthope.pages.dev/nt/content?id=${encodeURIComponent(batchId)}`;
+  window.location.href = `https://nt.nextstudys.site/course/${encodeURIComponent(batchId)}`;
+};
 
     setActiveBatchUrl(targetUrl);
     setCourseOpen(true);

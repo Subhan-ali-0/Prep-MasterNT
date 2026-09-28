@@ -4,65 +4,102 @@
 import { useEffect, useRef, useState } from 'react';
 
 function isHls(url) {
-  return /\.m3u8(\?|$)/i.test(url || '');
+  return /\.m3u8(?:\?|$)/i.test(url || '');
 }
 
-export default function HlsVideo({ url, title }) {
+export default function HlsVideo({
+  src,
+  url,
+  title,
+  className = 'pm-video',
+  onFatalError,
+}) {
   const videoRef = useRef(null);
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState('');
 
+  // PrepMasterApp sends `src`; `url` is also supported.
+  const videoUrl = src || url;
+
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !url) return;
+    if (!video || !videoUrl) return;
 
     let hls;
     let cancelled = false;
 
+    const showError = (message) => {
+      if (cancelled) return;
+      setStatus('error');
+      setError(message);
+      onFatalError?.(message);
+    };
+
     setStatus('loading');
     setError('');
 
-    const nativeHls = video.canPlayType('application/vnd.apple.mpegurl');
+    // Use native HLS when the browser supports it.
+    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = videoUrl;
 
-    if (!isHls(url) || nativeHls) {
-      video.src = url;
       return () => {
+        video.pause();
         video.removeAttribute('src');
         video.load();
       };
     }
 
-    import('hls.js').then(({ default: Hls }) => {
-      if (cancelled) return;
+    // Use hls.js for browsers without native HLS support.
+    if (!isHls(videoUrl)) {
+      video.src = videoUrl;
 
-      if (!Hls.isSupported()) {
-        setStatus('error');
-        setError('Ye browser HLS video support nahi karta.');
-        return;
-      }
+      return () => {
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+      };
+    }
 
-      hls = new Hls({ enableWorker: true });
+    import('hls.js')
+      .then(({ default: Hls }) => {
+        if (cancelled) return;
 
-      hls.on(Hls.Events.ERROR, (_event, data) => {
-        if (!data?.fatal) return;
-        setStatus('error');
-        setError(
-          data.type === Hls.ErrorTypes.NETWORK_ERROR
-            ? 'Video stream load nahi ho saka (network/access error).'
-            : 'Video play nahi ho saka.'
-        );
-        hls.destroy();
+        if (!Hls.isSupported()) {
+          showError('Is browser mein HLS playback supported nahi hai.');
+          return;
+        }
+
+        hls = new Hls({ enableWorker: true });
+
+        hls.on(Hls.Events.ERROR, (_event, data) => {
+          if (!data?.fatal) return;
+
+          const message =
+            data.type === Hls.ErrorTypes.NETWORK_ERROR
+              ? 'Stream load nahi hui. Network, CORS ya access issue ho sakta hai.'
+              : 'Video play nahi ho saka.';
+
+          showError(message);
+          hls?.destroy();
+          hls = null;
+        });
+
+        hls.loadSource(videoUrl);
+        hls.attachMedia(video);
+      })
+      .catch(() => {
+        showError('HLS player load nahi ho saka. hls.js dependency check karo.');
       });
-
-      hls.loadSource(url);
-      hls.attachMedia(video);
-    });
 
     return () => {
       cancelled = true;
       if (hls) hls.destroy();
+
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
     };
-  }, [url]);
+  }, [videoUrl, onFatalError]);
 
   return (
     <div className="pm-video-wrapper">
@@ -71,12 +108,14 @@ export default function HlsVideo({ url, title }) {
         controls
         autoPlay
         playsInline
-        className="pm-video"
-        aria-label={title}
+        className={className}
+        aria-label={title || 'Video player'}
         onCanPlay={() => setStatus('ready')}
         onError={() => {
+          const message = 'Video play nahi ho saka. Stream URL ya access check karo.';
           setStatus('error');
-          setError('Video play nahi ho saka.');
+          setError(message);
+          onFatalError?.(message);
         }}
       />
 

@@ -114,30 +114,28 @@ export default function PrepMasterApp() {
 
   /* =========================================================
      COURSE VIEWER
-  ========================================================= */
+========================================================= */
 
   const [activeBatchUrl, setActiveBatchUrl] = useState('');
   const [courseOpen, setCourseOpen] = useState(false);
 
-  /* ---------------- MENU / POPUPS ---------------- */
+  /* =========================================================
+     MENU / POPUPS
+========================================================= */
 
-  const [menuOpen, setMenuOpen] =
-    useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  const [enrollPopup, setEnrollPopup] =
-    useState(false);
+  const [enrollPopup, setEnrollPopup] = useState(false);
 
-  const [telegramPopup, setTelegramPopup] =
-    useState(false);
+  const [telegramPopup, setTelegramPopup] = useState(false);
 
   /* =========================================================
      LOAD ENROLLED
-  ========================================================= */
+========================================================= */
 
   useEffect(() => {
     try {
-      const saved =
-        localStorage.getItem('pm_enrolled');
+      const saved = localStorage.getItem('pm_enrolled');
 
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -153,7 +151,7 @@ export default function PrepMasterApp() {
 
   /* =========================================================
      SAVE ENROLLED
-  ========================================================= */
+========================================================= */
 
   useEffect(() => {
     try {
@@ -166,14 +164,13 @@ export default function PrepMasterApp() {
 
   /* =========================================================
      TELEGRAM POPUP
-  ========================================================= */
+========================================================= */
 
   useEffect(() => {
     try {
-      const shown =
-        localStorage.getItem(
-          'pm_telegram_popup_shown'
-        );
+      const shown = localStorage.getItem(
+        'pm_telegram_popup_shown'
+      );
 
       if (!shown) {
         setTelegramPopup(true);
@@ -188,19 +185,16 @@ export default function PrepMasterApp() {
 
   /* =========================================================
      LOAD BATCHES
-  ========================================================= */
+========================================================= */
 
   async function loadBatches() {
     try {
       setLoading(true);
       setError('');
 
-      const response = await fetch(
-        '/api/batches',
-        {
-          cache: 'no-store',
-        }
-      );
+      const response = await fetch('/api/batches', {
+        cache: 'no-store',
+      });
 
       const json = await response.json();
 
@@ -232,11 +226,10 @@ export default function PrepMasterApp() {
 
   /* =========================================================
      SEARCH
-  ========================================================= */
+========================================================= */
 
   const filteredBatches = useMemo(() => {
-    const query =
-      search.trim().toLowerCase();
+    const query = search.trim().toLowerCase();
 
     if (!query) {
       return batches;
@@ -258,7 +251,7 @@ export default function PrepMasterApp() {
 
   /* =========================================================
      OPEN BATCH
-  ========================================================= */
+========================================================= */
 
   const openBatch = (batch) => {
     const batchId = getId(batch);
@@ -268,12 +261,18 @@ export default function PrepMasterApp() {
       return;
     }
 
-    window.location.href = `https://nt.nextstudys.site/course/${encodeURIComponent(batchId)}`;
+    const targetUrl =
+      `https://nt.nextstudys.site/course/${encodeURIComponent(
+        batchId
+      )}`;
+
+    setActiveBatchUrl(targetUrl);
+    setCourseOpen(true);
   };
 
   /* =========================================================
      CLOSE COURSE
-  ========================================================= */
+========================================================= */
 
   function closeCourse() {
     setCourseOpen(false);
@@ -282,7 +281,7 @@ export default function PrepMasterApp() {
 
   /* =========================================================
      ENROLL
-  ========================================================= */
+========================================================= */
 
   function enrollBatch(batch) {
     const id = getId(batch);
@@ -316,7 +315,7 @@ export default function PrepMasterApp() {
 
   /* =========================================================
      MENU
-  ========================================================= */
+========================================================= */
 
   function navigateFromMenu(target) {
     setMenuOpen(false);
@@ -362,7 +361,7 @@ export default function PrepMasterApp() {
 
   /* =========================================================
      HOME / BATCHES PAGE
-  ========================================================= */
+========================================================= */
 
   function BatchesPage() {
     return (
@@ -372,7 +371,7 @@ export default function PrepMasterApp() {
           backgroundColor: '#000000',
           color: '#f3f4f6',
           minHeight: '100vh',
-          paddingBottom: '80px'
+          paddingBottom: '80px',
         }}
       >
         <div
@@ -383,7 +382,7 @@ export default function PrepMasterApp() {
             padding: '16px',
             display: 'flex',
             justifyContent: 'space-between',
-            alignItems: 'center'
+            alignItems: 'center',
           }}
         >
           <div
@@ -394,7 +393,7 @@ export default function PrepMasterApp() {
               gap: '10px',
               fontWeight: 'bold',
               fontSize: '18px',
-              color: '#ffffff'
+              color: '#ffffff',
             }}
           >
             <img
@@ -404,7 +403,7 @@ export default function PrepMasterApp() {
               style={{
                 width: '32px',
                 height: '32px',
-                borderRadius: '50%'
+                borderRadius: '50%',
               }}
             />
 
@@ -415,7 +414,9 @@ export default function PrepMasterApp() {
             type="button"
             className="pm-menu-button"
             onClick={() =>
-              setMenuOpen((value) => !value)
+              setMenuOpen(
+                (value) => !value
+              )
             }
             aria-label="Open menu"
             style={{
@@ -424,7 +425,7 @@ export default function PrepMasterApp() {
               color: '#ffffff',
               fontSize: '24px',
               cursor: 'pointer',
-              padding: '4px 8px'
+              padding: '4px 8px',
             }}
           >
             ⋮
@@ -433,7 +434,9 @@ export default function PrepMasterApp() {
 
         <div
           className="pm-search-wrap"
-          style={{ padding: '16px' }}
+          style={{
+            padding: '16px',
+          }}
         >
           <input
             type="search"
@@ -453,7 +456,8 @@ export default function PrepMasterApp() {
               borderRadius: '8px',
               color: '#ffffff',
               outline: 'none',
-              fontSize: '14px'
+              fontSize: '14px',
+              boxSizing: 'border-box',
             }}
           />
         </div>
@@ -464,7 +468,7 @@ export default function PrepMasterApp() {
             style={{
               textAlign: 'center',
               padding: '40px',
-              color: '#a1a1aa'
+              color: '#a1a1aa',
             }}
           >
             Loading batches...
@@ -475,7 +479,7 @@ export default function PrepMasterApp() {
             style={{
               textAlign: 'center',
               padding: '40px',
-              color: '#ef4444'
+              color: '#ef4444',
             }}
           >
             {error}
@@ -486,7 +490,7 @@ export default function PrepMasterApp() {
             style={{
               textAlign: 'center',
               padding: '40px',
-              color: '#a1a1aa'
+              color: '#a1a1aa',
             }}
           >
             No batches found.
@@ -499,15 +503,17 @@ export default function PrepMasterApp() {
               gridTemplateColumns:
                 'repeat(auto-fill, minmax(280px, 1fr))',
               gap: '16px',
-              padding: '0 16px'
+              padding: '0 16px',
             }}
           >
-            {filteredBatches.map((batch) => (
-              <BatchCard
-                batch={batch}
-                key={getId(batch)}
-              />
-            ))}
+            {filteredBatches.map(
+              (batch) => (
+                <BatchCard
+                  batch={batch}
+                  key={getId(batch)}
+                />
+              )
+            )}
           </div>
         )}
       </div>
@@ -516,7 +522,7 @@ export default function PrepMasterApp() {
 
   /* =========================================================
      BATCH CARD
-  ========================================================= */
+========================================================= */
 
   function BatchCard({ batch }) {
     const enrolledAlready =
@@ -533,7 +539,9 @@ export default function PrepMasterApp() {
     const mrp =
       mrpValue != null &&
       Number(mrpValue) >
-        Number(getPrice(batch) || 0)
+        Number(
+          getPrice(batch) || 0
+        )
         ? formatPrice(mrpValue)
         : '';
 
@@ -552,7 +560,7 @@ export default function PrepMasterApp() {
           borderRadius: '12px',
           overflow: 'hidden',
           display: 'flex',
-          flexDirection: 'column'
+          flexDirection: 'column',
         }}
       >
         {getBatchImage(batch) ? (
@@ -563,7 +571,7 @@ export default function PrepMasterApp() {
             style={{
               width: '100%',
               height: '160px',
-              objectFit: 'cover'
+              objectFit: 'cover',
             }}
           />
         ) : (
@@ -576,7 +584,7 @@ export default function PrepMasterApp() {
               alignItems: 'center',
               justifyContent: 'center',
               backgroundColor: '#1f1f23',
-              fontSize: '32px'
+              fontSize: '32px',
             }}
           >
             📚
@@ -590,29 +598,33 @@ export default function PrepMasterApp() {
             display: 'flex',
             flexDirection: 'column',
             flex: 1,
-            justifyContent: 'space-between'
+            justifyContent: 'space-between',
           }}
         >
           <div>
-            {(isNew || isTrending) && (
+            {(isNew ||
+              isTrending) && (
               <div
                 className="pm-badge-row"
                 style={{
                   display: 'flex',
                   gap: '8px',
-                  marginBottom: '8px'
+                  marginBottom: '8px',
                 }}
               >
                 {isNew && (
                   <span
                     className="pm-badge pm-badge-new"
                     style={{
-                      backgroundColor: '#1e3a8a',
+                      backgroundColor:
+                        '#1e3a8a',
                       color: '#38bdf8',
-                      padding: '2px 8px',
-                      borderRadius: '4px',
+                      padding:
+                        '2px 8px',
+                      borderRadius:
+                        '4px',
                       fontSize: '11px',
-                      fontWeight: '600'
+                      fontWeight: '600',
                     }}
                   >
                     New
@@ -623,12 +635,15 @@ export default function PrepMasterApp() {
                   <span
                     className="pm-badge pm-badge-trending"
                     style={{
-                      backgroundColor: '#581c87',
+                      backgroundColor:
+                        '#581c87',
                       color: '#c084fc',
-                      padding: '2px 8px',
-                      borderRadius: '4px',
+                      padding:
+                        '2px 8px',
+                      borderRadius:
+                        '4px',
                       fontSize: '11px',
-                      fontWeight: '600'
+                      fontWeight: '600',
                     }}
                   >
                     Trending
@@ -643,7 +658,7 @@ export default function PrepMasterApp() {
                 fontWeight: 'bold',
                 color: '#ffffff',
                 marginBottom: '8px',
-                lineHeight: '1.4'
+                lineHeight: '1.4',
               }}
             >
               {getTitle(batch)}
@@ -655,10 +670,12 @@ export default function PrepMasterApp() {
                   fontSize: '13px',
                   color: '#a1a1aa',
                   marginBottom: '12px',
-                  display: '-webkit-box',
+                  display:
+                    '-webkit-box',
                   WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
-                  overflow: 'hidden'
+                  WebkitBoxOrient:
+                    'vertical',
+                  overflow: 'hidden',
                 }}
               >
                 {getDescription(batch)}
@@ -674,10 +691,12 @@ export default function PrepMasterApp() {
                   fontSize: '15px',
                   fontWeight: 'bold',
                   color: '#ffffff',
-                  marginBottom: '12px',
+                  marginBottom:
+                    '12px',
                   display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px'
+                  alignItems:
+                    'center',
+                  gap: '8px',
                 }}
               >
                 {price}
@@ -690,7 +709,8 @@ export default function PrepMasterApp() {
                       color: '#71717a',
                       textDecoration:
                         'line-through',
-                      fontWeight: 'normal'
+                      fontWeight:
+                        'normal',
                     }}
                   >
                     {mrp}
@@ -703,7 +723,7 @@ export default function PrepMasterApp() {
               className="pm-card-actions"
               style={{
                 display: 'flex',
-                gap: '8px'
+                gap: '8px',
               }}
             >
               <button
@@ -715,14 +735,16 @@ export default function PrepMasterApp() {
                 style={{
                   flex: 1,
                   padding: '10px',
-                  backgroundColor: '#27272a',
+                  backgroundColor:
+                    '#27272a',
                   border:
                     '1px solid #3f3f46',
                   color: '#ffffff',
-                  borderRadius: '8px',
+                  borderRadius:
+                    '8px',
                   fontWeight: '600',
                   cursor: 'pointer',
-                  fontSize: '13px'
+                  fontSize: '13px',
                 }}
               >
                 Study
@@ -745,10 +767,11 @@ export default function PrepMasterApp() {
                       : '#2563eb',
                   border: 'none',
                   color: '#ffffff',
-                  borderRadius: '8px',
+                  borderRadius:
+                    '8px',
                   fontWeight: '600',
                   cursor: 'pointer',
-                  fontSize: '13px'
+                  fontSize: '13px',
                 }}
               >
                 {enrolledAlready
@@ -764,7 +787,7 @@ export default function PrepMasterApp() {
 
   /* =========================================================
      MY BATCHES
-  ========================================================= */
+========================================================= */
 
   function MyBatchesPage() {
     return (
@@ -775,7 +798,7 @@ export default function PrepMasterApp() {
           color: '#f3f4f6',
           minHeight: '100vh',
           padding: '16px',
-          paddingBottom: '80px'
+          paddingBottom: '80px',
         }}
       >
         <div
@@ -784,7 +807,7 @@ export default function PrepMasterApp() {
             fontSize: '20px',
             fontWeight: 'bold',
             color: '#ffffff',
-            marginBottom: '20px'
+            marginBottom: '20px',
           }}
         >
           My Batches
@@ -796,10 +819,11 @@ export default function PrepMasterApp() {
             style={{
               textAlign: 'center',
               padding: '60px 20px',
-              color: '#a1a1aa'
+              color: '#a1a1aa',
             }}
           >
-            Abhi koi batch enrolled nahi hai.
+            Abhi koi batch enrolled
+            nahi hai.
           </div>
         ) : (
           <div
@@ -808,15 +832,17 @@ export default function PrepMasterApp() {
               display: 'grid',
               gridTemplateColumns:
                 'repeat(auto-fill, minmax(280px, 1fr))',
-              gap: '16px'
+              gap: '16px',
             }}
           >
-            {enrolled.map((batch) => (
-              <BatchCard
-                batch={batch}
-                key={getId(batch)}
-              />
-            ))}
+            {enrolled.map(
+              (batch) => (
+                <BatchCard
+                  batch={batch}
+                  key={getId(batch)}
+                />
+              )
+            )}
           </div>
         )}
       </div>
@@ -825,7 +851,7 @@ export default function PrepMasterApp() {
 
   /* =========================================================
      COMMUNITY
-  ========================================================= */
+========================================================= */
 
   function CommunityPage() {
     return (
@@ -836,7 +862,7 @@ export default function PrepMasterApp() {
           color: '#f3f4f6',
           minHeight: '100vh',
           padding: '16px',
-          paddingBottom: '80px'
+          paddingBottom: '80px',
         }}
       >
         <div
@@ -845,7 +871,7 @@ export default function PrepMasterApp() {
             fontSize: '20px',
             fontWeight: 'bold',
             color: '#ffffff',
-            marginBottom: '20px'
+            marginBottom: '20px',
           }}
         >
           💬 Community
@@ -857,15 +883,16 @@ export default function PrepMasterApp() {
             textAlign: 'center',
             padding: '80px 20px',
             backgroundColor: '#141414',
-            border: '1px solid #222222',
+            border:
+              '1px solid #222222',
             borderRadius: '12px',
-            marginTop: '40px'
+            marginTop: '40px',
           }}
         >
           <div
             style={{
               fontSize: '48px',
-              marginBottom: '16px'
+              marginBottom: '16px',
             }}
           >
             💬
@@ -876,7 +903,7 @@ export default function PrepMasterApp() {
               fontSize: '22px',
               fontWeight: 'bold',
               color: '#ffffff',
-              marginBottom: '8px'
+              marginBottom: '8px',
             }}
           >
             Coming Soon
@@ -885,7 +912,7 @@ export default function PrepMasterApp() {
           <p
             style={{
               color: '#a1a1aa',
-              fontSize: '14px'
+              fontSize: '14px',
             }}
           >
             Community feature jaldi
@@ -898,7 +925,7 @@ export default function PrepMasterApp() {
 
   /* =========================================================
      AI DOUBTS
-  ========================================================= */
+========================================================= */
 
   function AiPage() {
     return (
@@ -909,7 +936,7 @@ export default function PrepMasterApp() {
           color: '#f3f4f6',
           minHeight: '100vh',
           padding: '16px',
-          paddingBottom: '80px'
+          paddingBottom: '80px',
         }}
       >
         <div
@@ -918,7 +945,7 @@ export default function PrepMasterApp() {
             fontSize: '20px',
             fontWeight: 'bold',
             color: '#ffffff',
-            marginBottom: '20px'
+            marginBottom: '20px',
           }}
         >
           🤖 AI Doubts Support
@@ -930,15 +957,16 @@ export default function PrepMasterApp() {
             textAlign: 'center',
             padding: '80px 20px',
             backgroundColor: '#141414',
-            border: '1px solid #222222',
+            border:
+              '1px solid #222222',
             borderRadius: '12px',
-            marginTop: '40px'
+            marginTop: '40px',
           }}
         >
           <div
             style={{
               fontSize: '48px',
-              marginBottom: '16px'
+              marginBottom: '16px',
             }}
           >
             🤖
@@ -949,7 +977,7 @@ export default function PrepMasterApp() {
               fontSize: '22px',
               fontWeight: 'bold',
               color: '#ffffff',
-              marginBottom: '8px'
+              marginBottom: '8px',
             }}
           >
             Coming Soon
@@ -958,7 +986,7 @@ export default function PrepMasterApp() {
           <p
             style={{
               color: '#a1a1aa',
-              fontSize: '14px'
+              fontSize: '14px',
             }}
           >
             AI Doubts Support jaldi
@@ -971,10 +999,25 @@ export default function PrepMasterApp() {
 
   /* =========================================================
      COURSE VIEWER
-  ========================================================= */
+     
+     IMPORTANT:
+     External page ko upar shift/crop nahi kar rahe.
+     Iframe full-size rahega.
+     
+     Upar:
+       1. Prep Master header
+       2. Black overlay
+     
+     Isse Next Study ka unwanted top area
+     hide hoga, lekin neeche ka course content
+     crop nahi hoga.
+========================================================= */
 
   function CourseViewer() {
-    if (!courseOpen || !activeBatchUrl) {
+    if (
+      !courseOpen ||
+      !activeBatchUrl
+    ) {
       return null;
     }
 
@@ -985,51 +1028,85 @@ export default function PrepMasterApp() {
           inset: 0,
           zIndex: 2000,
           backgroundColor: '#000000',
-          overflow: 'hidden'
+          overflow: 'hidden',
         }}
       >
-        {/* PREP MASTER HEADER */}
+        {/* =================================================
+            EXTERNAL COURSE - FULL SIZE
+        ================================================= */}
+
+        <iframe
+          src={activeBatchUrl}
+          title="Prep Master Course"
+          allowFullScreen
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            border: 'none',
+            display: 'block',
+          }}
+        />
+
+        {/* =================================================
+            PREP MASTER HEADER
+
+            Mobile screenshot ke hisaab se:
+            status bar ke neeche approx 120px
+        ================================================= */}
+
         <div
           style={{
             position: 'absolute',
             top: 0,
             left: 0,
             right: 0,
-            height: '72px',
-            backgroundColor: '#121212',
+            height: '122px',
+            backgroundColor: '#111214',
             borderBottom:
               '1px solid #222222',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '0 18px',
+            padding:
+              '0 24px',
             zIndex: 20,
-            boxSizing: 'border-box'
+            boxSizing:
+              'border-box',
           }}
         >
           <div
             style={{
               display: 'flex',
-              alignItems: 'center',
-              gap: '10px'
+              alignItems:
+                'center',
+              gap: '16px',
             }}
           >
             <img
               src="/prep-master-logo.png"
               alt="Prep Master"
               style={{
-                width: '42px',
-                height: '42px',
-                borderRadius: '50%',
-                objectFit: 'cover'
+                width: '64px',
+                height: '64px',
+                borderRadius:
+                  '50%',
+                objectFit:
+                  'cover',
+                flexShrink: 0,
               }}
             />
 
             <span
               style={{
                 color: '#ffffff',
-                fontSize: '22px',
-                fontWeight: '700'
+                fontSize:
+                  '28px',
+                fontWeight:
+                  '700',
+                whiteSpace:
+                  'nowrap',
               }}
             >
               Prep Master
@@ -1038,69 +1115,83 @@ export default function PrepMasterApp() {
 
           <button
             type="button"
-            onClick={closeCourse}
+            onClick={
+              closeCourse
+            }
             aria-label="Close course"
             style={{
-              background: 'transparent',
+              marginLeft:
+                'auto',
+              background:
+                'transparent',
               border: 'none',
               color: '#ffffff',
-              fontSize: '30px',
+              fontSize:
+                '42px',
               lineHeight: 1,
-              cursor: 'pointer',
-              padding: '5px 10px'
+              cursor:
+                'pointer',
+              padding:
+                '5px 8px',
             }}
           >
             ×
           </button>
         </div>
 
-        {/* CROPPED COURSE AREA */}
+        {/* =================================================
+            BLACK MASK
+
+            Ye Next Study ke:
+            - header ke neeche ka unwanted area
+            - red-marked blank portion
+
+            ko hide karega.
+
+            Iframe move nahi hua hai.
+        ================================================= */}
+
         <div
           style={{
-            position: 'absolute',
-            top: '72px',
+            position:
+              'absolute',
+            top: '122px',
             left: 0,
             right: 0,
-            bottom: 0,
-            overflow: 'hidden',
-            backgroundColor: '#000000'
+            height: '95px',
+            backgroundColor:
+              '#000000',
+            zIndex: 19,
           }}
-        >
-          <iframe
-            src={activeBatchUrl}
-            title="Prep Master Course"
-            allowFullScreen
-            style={{
-              position: 'absolute',
+        />
 
-              /*
-               * Upar ka external header crop.
-               * Is value ko zarurat ke hisaab se
-               * -140px / -170px / -200px kar sakte ho.
-               */
-              top: '-170px',
+        {/* =================================================
+            MOBILE SAFETY MASK
 
-              left: 0,
-              width: '100%',
+            Side/top par external header ke leftover
+            pixels dikhne se bachane ke liye.
+        ================================================= */}
 
-              /*
-               * Cropping compensate karne ke liye
-               * iframe ki height badhai gayi hai.
-               */
-              height: 'calc(100% + 170px)',
-
-              border: 'none',
-              display: 'block'
-            }}
-          />
-        </div>
+        <div
+          style={{
+            position:
+              'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '2px',
+            backgroundColor:
+              '#111214',
+            zIndex: 21,
+          }}
+        />
       </div>
     );
   }
 
   /* =========================================================
      ENROLL POPUP
-  ========================================================= */
+========================================================= */
 
   function EnrollPopup() {
     if (!enrollPopup) {
@@ -1122,28 +1213,29 @@ export default function PrepMasterApp() {
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 1000,
-          padding: '16px'
+          padding: '16px',
         }}
       >
         <div
           className="pm-popup-card"
           style={{
             backgroundColor: '#141414',
-            border: '1px solid #27272a',
+            border:
+              '1px solid #27272a',
             borderRadius: '16px',
             padding: '24px',
             width: '100%',
             maxWidth: '360px',
             textAlign: 'center',
             boxShadow:
-              '0 20px 25px -5px rgba(0, 0, 0, 0.5)'
+              '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
           }}
         >
           <div
             className="pm-popup-icon"
             style={{
               fontSize: '40px',
-              marginBottom: '16px'
+              marginBottom: '16px',
             }}
           >
             🎉
@@ -1154,7 +1246,7 @@ export default function PrepMasterApp() {
               fontSize: '20px',
               fontWeight: 'bold',
               color: '#ffffff',
-              marginBottom: '12px'
+              marginBottom: '12px',
             }}
           >
             Congratulations 🎉
@@ -1165,11 +1257,12 @@ export default function PrepMasterApp() {
               color: '#a1a1aa',
               fontSize: '14px',
               marginBottom: '20px',
-              lineHeight: '1.5'
+              lineHeight: '1.5',
             }}
           >
-            Batch successfully enrolled.
-            Ab ye batch My Batches me
+            Batch successfully
+            enrolled. Ab ye batch
+            My Batches me
             available hai.
           </p>
 
@@ -1182,13 +1275,14 @@ export default function PrepMasterApp() {
             style={{
               width: '100%',
               padding: '12px',
-              backgroundColor: '#2563eb',
+              backgroundColor:
+                '#2563eb',
               border: 'none',
               color: '#ffffff',
               borderRadius: '8px',
               fontWeight: '600',
               cursor: 'pointer',
-              fontSize: '14px'
+              fontSize: '14px',
             }}
           >
             Continue
@@ -1200,7 +1294,7 @@ export default function PrepMasterApp() {
 
   /* =========================================================
      TELEGRAM POPUP
-  ========================================================= */
+========================================================= */
 
   function TelegramPopup() {
     if (!telegramPopup) {
@@ -1222,21 +1316,22 @@ export default function PrepMasterApp() {
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 1000,
-          padding: '16px'
+          padding: '16px',
         }}
       >
         <div
           className="pm-popup-card"
           style={{
             backgroundColor: '#141414',
-            border: '1px solid #27272a',
+            border:
+              '1px solid #27272a',
             borderRadius: '16px',
             padding: '24px',
             width: '100%',
             maxWidth: '360px',
             textAlign: 'center',
             boxShadow:
-              '0 20px 25px -5px rgba(0, 0, 0, 0.5)'
+              '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
           }}
         >
           <img
@@ -1246,9 +1341,12 @@ export default function PrepMasterApp() {
             style={{
               width: '56px',
               height: '56px',
-              borderRadius: '50%',
-              marginBottom: '16px',
-              objectFit: 'cover'
+              borderRadius:
+                '50%',
+              marginBottom:
+                '16px',
+              objectFit:
+                'cover',
             }}
           />
 
@@ -1257,7 +1355,7 @@ export default function PrepMasterApp() {
               fontSize: '20px',
               fontWeight: 'bold',
               color: '#ffffff',
-              marginBottom: '12px'
+              marginBottom: '12px',
             }}
           >
             Join Prep Master
@@ -1268,19 +1366,22 @@ export default function PrepMasterApp() {
               color: '#a1a1aa',
               fontSize: '14px',
               marginBottom: '20px',
-              lineHeight: '1.5'
+              lineHeight: '1.5',
             }}
           >
             Latest updates aur
-            announcements ke liye Telegram
-            channel join karein.
+            announcements ke liye
+            Telegram channel
+            join karein.
           </p>
 
           <button
             type="button"
             className="pm-primary"
             onClick={() => {
-              setTelegramPopup(false);
+              setTelegramPopup(
+                false
+              );
 
               window.open(
                 TELEGRAM_URL,
@@ -1291,14 +1392,20 @@ export default function PrepMasterApp() {
             style={{
               width: '100%',
               padding: '12px',
-              backgroundColor: '#2563eb',
+              backgroundColor:
+                '#2563eb',
               border: 'none',
               color: '#ffffff',
-              borderRadius: '8px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              fontSize: '14px',
-              marginBottom: '10px'
+              borderRadius:
+                '8px',
+              fontWeight:
+                '600',
+              cursor:
+                'pointer',
+              fontSize:
+                '14px',
+              marginBottom:
+                '10px',
             }}
           >
             ✈️ Join Telegram
@@ -1308,16 +1415,21 @@ export default function PrepMasterApp() {
             type="button"
             className="pm-popup-close"
             onClick={() =>
-              setTelegramPopup(false)
+              setTelegramPopup(
+                false
+              )
             }
             style={{
               width: '100%',
               padding: '10px',
-              backgroundColor: 'transparent',
+              backgroundColor:
+                'transparent',
               border: 'none',
               color: '#a1a1aa',
-              cursor: 'pointer',
-              fontSize: '13px'
+              cursor:
+                'pointer',
+              fontSize:
+                '13px',
             }}
           >
             Maybe Later
@@ -1329,7 +1441,7 @@ export default function PrepMasterApp() {
 
   /* =========================================================
      MENU
-  ========================================================= */
+========================================================= */
 
   function SideMenu() {
     if (!menuOpen) {
@@ -1343,8 +1455,10 @@ export default function PrepMasterApp() {
           position: 'fixed',
           top: '65px',
           right: '16px',
-          backgroundColor: '#141414',
-          border: '1px solid #27272a',
+          backgroundColor:
+            '#141414',
+          border:
+            '1px solid #27272a',
           borderRadius: '12px',
           padding: '8px',
           zIndex: 999,
@@ -1352,25 +1466,33 @@ export default function PrepMasterApp() {
           boxShadow:
             '0 10px 15px -3px rgba(0, 0, 0, 0.5)',
           display: 'flex',
-          flexDirection: 'column',
-          gap: '4px'
+          flexDirection:
+            'column',
+          gap: '4px',
         }}
       >
         <button
           type="button"
           onClick={() =>
-            navigateFromMenu('batches')
+            navigateFromMenu(
+              'batches'
+            )
           }
           style={{
             textAlign: 'left',
-            padding: '10px 12px',
-            backgroundColor: 'transparent',
+            padding:
+              '10px 12px',
+            backgroundColor:
+              'transparent',
             border: 'none',
             color: '#f3f4f6',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontSize: '14px',
-            width: '100%'
+            borderRadius:
+              '6px',
+            cursor:
+              'pointer',
+            fontSize:
+              '14px',
+            width: '100%',
           }}
         >
           📚 Batches
@@ -1379,18 +1501,25 @@ export default function PrepMasterApp() {
         <button
           type="button"
           onClick={() =>
-            navigateFromMenu('my-batches')
+            navigateFromMenu(
+              'my-batches'
+            )
           }
           style={{
             textAlign: 'left',
-            padding: '10px 12px',
-            backgroundColor: 'transparent',
+            padding:
+              '10px 12px',
+            backgroundColor:
+              'transparent',
             border: 'none',
             color: '#f3f4f6',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontSize: '14px',
-            width: '100%'
+            borderRadius:
+              '6px',
+            cursor:
+              'pointer',
+            fontSize:
+              '14px',
+            width: '100%',
           }}
         >
           📖 My Batches
@@ -1399,18 +1528,25 @@ export default function PrepMasterApp() {
         <button
           type="button"
           onClick={() =>
-            navigateFromMenu('community')
+            navigateFromMenu(
+              'community'
+            )
           }
           style={{
             textAlign: 'left',
-            padding: '10px 12px',
-            backgroundColor: 'transparent',
+            padding:
+              '10px 12px',
+            backgroundColor:
+              'transparent',
             border: 'none',
             color: '#f3f4f6',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontSize: '14px',
-            width: '100%'
+            borderRadius:
+              '6px',
+            cursor:
+              'pointer',
+            fontSize:
+              '14px',
+            width: '100%',
           }}
         >
           💬 Community
@@ -1419,18 +1555,25 @@ export default function PrepMasterApp() {
         <button
           type="button"
           onClick={() =>
-            navigateFromMenu('ai')
+            navigateFromMenu(
+              'ai'
+            )
           }
           style={{
             textAlign: 'left',
-            padding: '10px 12px',
-            backgroundColor: 'transparent',
+            padding:
+              '10px 12px',
+            backgroundColor:
+              'transparent',
             border: 'none',
             color: '#f3f4f6',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontSize: '14px',
-            width: '100%'
+            borderRadius:
+              '6px',
+            cursor:
+              'pointer',
+            fontSize:
+              '14px',
+            width: '100%',
           }}
         >
           🤖 AI Doubts Support
@@ -1439,18 +1582,25 @@ export default function PrepMasterApp() {
         <button
           type="button"
           onClick={() =>
-            navigateFromMenu('telegram')
+            navigateFromMenu(
+              'telegram'
+            )
           }
           style={{
             textAlign: 'left',
-            padding: '10px 12px',
-            backgroundColor: 'transparent',
+            padding:
+              '10px 12px',
+            backgroundColor:
+              'transparent',
             border: 'none',
             color: '#f3f4f6',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontSize: '14px',
-            width: '100%'
+            borderRadius:
+              '6px',
+            cursor:
+              'pointer',
+            fontSize:
+              '14px',
+            width: '100%',
           }}
         >
           ✈️ Join Telegram
@@ -1459,18 +1609,25 @@ export default function PrepMasterApp() {
         <button
           type="button"
           onClick={() =>
-            navigateFromMenu('contact')
+            navigateFromMenu(
+              'contact'
+            )
           }
           style={{
             textAlign: 'left',
-            padding: '10px 12px',
-            backgroundColor: 'transparent',
+            padding:
+              '10px 12px',
+            backgroundColor:
+              'transparent',
             border: 'none',
             color: '#f3f4f6',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontSize: '14px',
-            width: '100%'
+            borderRadius:
+              '6px',
+            cursor:
+              'pointer',
+            fontSize:
+              '14px',
+            width: '100%',
           }}
         >
           👤 Contact Owner
@@ -1481,7 +1638,7 @@ export default function PrepMasterApp() {
 
   /* =========================================================
      BOTTOM NAV
-  ========================================================= */
+========================================================= */
 
   function BottomNav() {
     return (
@@ -1492,13 +1649,16 @@ export default function PrepMasterApp() {
           bottom: 0,
           left: 0,
           right: 0,
-          backgroundColor: '#121212',
+          backgroundColor:
+            '#121212',
           borderTop:
             '1px solid #222222',
           display: 'flex',
-          justifyContent: 'space-around',
-          padding: '8px 0',
-          zIndex: 998
+          justifyContent:
+            'space-around',
+          padding:
+            '8px 0',
+          zIndex: 998,
         }}
       >
         <button
@@ -1509,24 +1669,35 @@ export default function PrepMasterApp() {
               : ''
           }
           onClick={() =>
-            setPage('community')
+            setPage(
+              'community'
+            )
           }
           style={{
             background: 'none',
             border: 'none',
             color:
-              page === 'community'
+              page ===
+              'community'
                 ? '#38bdf8'
                 : '#a1a1aa',
             display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            fontSize: '11px',
-            cursor: 'pointer',
-            gap: '2px'
+            flexDirection:
+              'column',
+            alignItems:
+              'center',
+            fontSize:
+              '11px',
+            cursor:
+              'pointer',
+            gap: '2px',
           }}
         >
-          <span style={{ fontSize: '18px' }}>
+          <span
+            style={{
+              fontSize: '18px',
+            }}
+          >
             💬
           </span>
           Community
@@ -1540,24 +1711,35 @@ export default function PrepMasterApp() {
               : ''
           }
           onClick={() =>
-            setPage('my-batches')
+            setPage(
+              'my-batches'
+            )
           }
           style={{
             background: 'none',
             border: 'none',
             color:
-              page === 'my-batches'
+              page ===
+              'my-batches'
                 ? '#38bdf8'
                 : '#a1a1aa',
             display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            fontSize: '11px',
-            cursor: 'pointer',
-            gap: '2px'
+            flexDirection:
+              'column',
+            alignItems:
+              'center',
+            fontSize:
+              '11px',
+            cursor:
+              'pointer',
+            gap: '2px',
           }}
         >
-          <span style={{ fontSize: '18px' }}>
+          <span
+            style={{
+              fontSize: '18px',
+            }}
+          >
             📖
           </span>
           My Batches
@@ -1581,14 +1763,22 @@ export default function PrepMasterApp() {
                 ? '#38bdf8'
                 : '#a1a1aa',
             display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            fontSize: '11px',
-            cursor: 'pointer',
-            gap: '2px'
+            flexDirection:
+              'column',
+            alignItems:
+              'center',
+            fontSize:
+              '11px',
+            cursor:
+              'pointer',
+            gap: '2px',
           }}
         >
-          <span style={{ fontSize: '18px' }}>
+          <span
+            style={{
+              fontSize: '18px',
+            }}
+          >
             📚
           </span>
           Batches
@@ -1612,14 +1802,22 @@ export default function PrepMasterApp() {
                 ? '#38bdf8'
                 : '#a1a1aa',
             display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            fontSize: '11px',
-            cursor: 'pointer',
-            gap: '2px'
+            flexDirection:
+              'column',
+            alignItems:
+              'center',
+            fontSize:
+              '11px',
+            cursor:
+              'pointer',
+            gap: '2px',
           }}
         >
-          <span style={{ fontSize: '18px' }}>
+          <span
+            style={{
+              fontSize: '18px',
+            }}
+          >
             🤖
           </span>
           AI Doubts
@@ -1630,22 +1828,26 @@ export default function PrepMasterApp() {
 
   /* =========================================================
      RENDER
-  ========================================================= */
+========================================================= */
 
   return (
     <div
       className="pm-app"
       style={{
-        backgroundColor: '#000000',
+        backgroundColor:
+          '#000000',
         color: '#f3f4f6',
-        minHeight: '100vh',
-        position: 'relative'
+        minHeight:
+          '100vh',
+        position:
+          'relative',
       }}
     >
       {page === 'batches' &&
         BatchesPage()}
 
-      {page === 'my-batches' &&
+      {page ===
+        'my-batches' &&
         MyBatchesPage()}
 
       {page === 'community' &&

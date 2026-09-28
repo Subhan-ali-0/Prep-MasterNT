@@ -1,11 +1,6 @@
-
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-
-function isHls(url) {
-  return /\.m3u8(?:\?|$)/i.test(url || '');
-}
 
 export default function HlsVideo({
   src,
@@ -18,82 +13,69 @@ export default function HlsVideo({
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState('');
 
-  // PrepMasterApp sends `src`; `url` is also supported.
   const videoUrl = src || url;
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !videoUrl) return;
 
-    let hls;
+    let player;
     let cancelled = false;
 
     const showError = (message) => {
       if (cancelled) return;
+
       setStatus('error');
       setError(message);
       onFatalError?.(message);
     };
 
-    setStatus('loading');
-    setError('');
+    async function setupPlayer() {
+      try {
+        setStatus('loading');
+        setError('');
 
-    // Use native HLS when the browser supports it.
-    if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = videoUrl;
+        const shaka = await import('shaka-player');
 
-      return () => {
-        video.pause();
-        video.removeAttribute('src');
-        video.load();
-      };
-    }
-
-    // Use hls.js for browsers without native HLS support.
-    if (!isHls(videoUrl)) {
-      video.src = videoUrl;
-
-      return () => {
-        video.pause();
-        video.removeAttribute('src');
-        video.load();
-      };
-    }
-
-    import('hls.js')
-      .then(({ default: Hls }) => {
         if (cancelled) return;
 
-        if (!Hls.isSupported()) {
-          showError('Is browser mein HLS playback supported nahi hai.');
+        shaka.default.polyfill.installAll();
+
+        if (!shaka.default.Player.isBrowserSupported()) {
+          showError('Is browser mein Shaka Player supported nahi hai.');
           return;
         }
 
-        hls = new Hls({ enableWorker: true });
+        player = new shaka.default.Player();
+        await player.attach(video);
 
-        hls.on(Hls.Events.ERROR, (_event, data) => {
-          if (!data?.fatal) return;
-
-          const message =
-            data.type === Hls.ErrorTypes.NETWORK_ERROR
-              ? 'Stream load nahi hui. Network, CORS ya access issue ho sakta hai.'
-              : 'Video play nahi ho saka.';
-
-          showError(message);
-          hls?.destroy();
-          hls = null;
+        player.addEventListener('error', (event) => {
+          const detail = event.detail;
+          showError(
+            `Video load nahi hui. Shaka error code: ${detail?.code || 'Unknown'}`
+          );
         });
 
-        hls.loadSource(videoUrl);
-        hls.attachMedia(video);
-      })
-      .catch(() => {
-        showError('HLS player load nahi ho saka. hls.js dependency check karo.');
-      });
+        await player.load(videoUrl);
+
+        if (!cancelled) {
+          setStatus('ready');
+        }
+      } catch (err) {
+        showError(
+          err?.message || 'Shaka Player video load nahi kar saka.'
+        );
+      }
+    }
+
+    setupPlayer();
 
     return () => {
       cancelled = true;
-      if (hls) hls.destroy();
+
+      if (player) {
+        player.destroy();
+      }
 
       video.pause();
       video.removeAttribute('src');
@@ -111,12 +93,6 @@ export default function HlsVideo({
         className={className}
         aria-label={title || 'Video player'}
         onCanPlay={() => setStatus('ready')}
-        onError={() => {
-          const message = 'Video play nahi ho saka. Stream URL ya access check karo.';
-          setStatus('error');
-          setError(message);
-          onFatalError?.(message);
-        }}
       />
 
       {status === 'loading' && (
